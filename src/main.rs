@@ -56,17 +56,24 @@ impl Application for OxiPaint {
         let raw_tool_bar = self.tool_bar.view();
         let contained_tool_bar = Container::new(raw_tool_bar)
             .width(Length::Shrink)
+            .height(Length::Fill)
             .center_y()
             .align_x(Align::Start);
 
-        let canvas = self.canvas.view();
+        let raw_canvas = self.canvas.view();
+        let contained_canvas = Container::new(raw_canvas)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x()
+            .center_y();
 
         let row = Row::new()
             .spacing(20)
             .padding(10)
             .width(Length::Fill)
+            .height(Length::Fill)
             .push(contained_tool_bar)
-            .push(canvas);
+            .push(contained_canvas);
 
         Container::new(row)
             .width(Length::Fill)
