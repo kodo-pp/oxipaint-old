@@ -9,7 +9,9 @@ mod tool_bar;
 mod workarounds;
 
 #[derive(Debug, Clone, Copy)]
-pub enum Message {}
+pub enum Message {
+    SelectTool(usize),
+}
 
 type OxiCommand = Command<Message>;
 type OxiElement<'a> = Element<'a, Message>;
@@ -28,17 +30,22 @@ impl Application for OxiPaint {
 
     fn new(_flags: Self::Flags) -> (Self, OxiCommand) {
         let tools = Tools::list_tools();
-        let tool_bar = ToolBar::new(&tools, 200);
+        let tool_bar = ToolBar::new(tools, 200);
         let app = OxiPaint { tool_bar };
-        (app, Command::none())
+        (app, OxiCommand::none())
     }
 
     fn title(&self) -> String {
         "Oxipaint".to_owned()
     }
 
-    fn update(&mut self, _message: Message) -> OxiCommand {
-        Command::none()
+    fn update(&mut self, message: Message) -> OxiCommand {
+        match message {
+            Message::SelectTool(tool_index) => {
+                self.tool_bar.select_tool(tool_index);
+            }
+        }
+        OxiCommand::none()
     }
 
     fn view(&mut self) -> OxiElement {
