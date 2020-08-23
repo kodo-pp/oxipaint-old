@@ -1,29 +1,34 @@
 extern crate iced;
-use iced::*;
+use crate::tool::Tools;
+use crate::tool_bar::ToolBar;
+use iced::executor;
+use iced::{Align, Application, Command, Container, Element, Length, Row, Settings};
 
+mod tool;
+mod tool_bar;
+mod workarounds;
 
 #[derive(Debug, Clone, Copy)]
-enum Message {}
+pub enum Message {}
 
 type OxiCommand = Command<Message>;
 type OxiElement<'a> = Element<'a, Message>;
-
 
 struct OxiPaint {
     tool_bar: ToolBar,
 }
 
-struct OxiPaintFlags {
-    tools: Box<dyn Iterator<Item = String>>,
-}
+#[derive(Default)]
+struct OxiPaintFlags {}
 
 impl Application for OxiPaint {
     type Executor = executor::Default;
     type Message = Message;
     type Flags = OxiPaintFlags;
 
-    fn new(flags: Self::Flags) -> (OxiPaint, OxiCommand) {
-        let tool_bar = ToolBar::new(flags.tools.map(ToolItem::new).collect(), 0, 200);
+    fn new(_flags: Self::Flags) -> (Self, OxiCommand) {
+        let tools = Tools::list_tools();
+        let tool_bar = ToolBar::new(&tools, 200);
         let app = OxiPaint { tool_bar };
         (app, Command::none())
     }
@@ -58,87 +63,6 @@ impl Application for OxiPaint {
     }
 }
 
-
-struct ToolBar {
-    selected_tool: usize,
-    tools: Vec<ToolItem>,
-    width: u16,
-}
-
-impl ToolBar {
-    pub fn new(tools: Vec<ToolItem>, default_tool_index: usize, width: u16) -> ToolBar {
-        assert!(default_tool_index < tools.len());
-        ToolBar { tools, selected_tool: default_tool_index, width }
-    }
-
-    pub fn view(&mut self) -> OxiElement {
-        let mut column = Column::new().spacing(10);
-        for (i, tool_item) in self.tools.iter_mut().enumerate() {
-            let is_selected = i == self.selected_tool;
-            let element = tool_item.view(is_selected, self.width);
-            column = column.push(element);
-        }
-        column.into()
-    }
-}
-
-
-struct ToolItem {
-    label: String,
-    button_state: button::State,
-}
-
-impl ToolItem {
-    pub fn new(label: String) -> ToolItem {
-        ToolItem { label, button_state: button::State::new() }
-    }
-
-    fn view(&mut self, is_selected: bool, width: u16) -> OxiElement {
-        let button_text = Text::new(&self.label);
-        let style = SimpleButtonStylesheet::new(
-            button::Style {
-                background: if is_selected {
-                                Some(Color::from_rgb(0.8, 0.8, 1.0).into())
-                            } else {
-                                None
-                            },
-                ..button::Style::default()
-            }
-        );
-        let button = Button::new(&mut self.button_state, button_text)
-            .style(style)
-            .width(Length::Units(width));
-        button.into()
-    }
-}
-
-#[derive(Debug)]
-struct SimpleButtonStylesheet {
-    style: button::Style,
-}
-
-impl SimpleButtonStylesheet {
-    pub fn new(style: button::Style) -> SimpleButtonStylesheet {
-        SimpleButtonStylesheet { style }
-    }
-}
-
-impl button::StyleSheet for SimpleButtonStylesheet {
-    fn active(&self) -> button::Style {
-        button::Style { ..self.style }
-    }
-}
-    
-
 fn main() {
-    const NAMES: [&'static str; 4] = [
-        "Brush",
-        "Pencil",
-        "Dragon Blood",
-        "Fire",
-    ];
-    let flags = OxiPaintFlags {
-        tools: Box::new(NAMES.iter().copied().map(String::from))
-    };
-    OxiPaint::run(Settings::with_flags(flags));
+    OxiPaint::run(Settings::default());
 }
