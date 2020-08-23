@@ -1,9 +1,11 @@
 extern crate iced;
+use crate::canvas::Canvas;
 use crate::tool::Tools;
 use crate::tool_bar::ToolBar;
-use iced::executor;
-use iced::{Align, Application, Command, Container, Element, Length, Row, Settings};
+use iced::{container, executor};
+use iced::{Align, Application, Color, Command, Container, Element, Length, Row, Settings};
 
+mod canvas;
 mod tool;
 mod tool_bar;
 mod workarounds;
@@ -18,6 +20,7 @@ type OxiElement<'a> = Element<'a, Message>;
 
 struct OxiPaint {
     tool_bar: ToolBar,
+    canvas: Canvas,
 }
 
 #[derive(Default)]
@@ -31,7 +34,8 @@ impl Application for OxiPaint {
     fn new(_flags: Self::Flags) -> (Self, OxiCommand) {
         let tools = Tools::list_tools();
         let tool_bar = ToolBar::new(tools, 200);
-        let app = OxiPaint { tool_bar };
+        let canvas = Canvas::new(800, 600);
+        let app = OxiPaint { tool_bar, canvas };
         (app, OxiCommand::none())
     }
 
@@ -55,18 +59,33 @@ impl Application for OxiPaint {
             .center_y()
             .align_x(Align::Start);
 
+        let canvas = self.canvas.view();
+
         let row = Row::new()
             .spacing(20)
             .padding(10)
             .width(Length::Fill)
-            .push(contained_tool_bar);
+            .push(contained_tool_bar)
+            .push(canvas);
 
         Container::new(row)
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x()
             .center_y()
+            .style(MainWindowStylesheet {})
             .into()
+    }
+}
+
+struct MainWindowStylesheet {}
+
+impl container::StyleSheet for MainWindowStylesheet {
+    fn style(&self) -> container::Style {
+        container::Style {
+            background: Some(Color::from_rgb(0.7, 0.7, 0.7).into()),
+            ..container::Style::default()
+        }
     }
 }
 
