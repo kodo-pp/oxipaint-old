@@ -2,7 +2,7 @@ extern crate iced;
 use crate::canvas::Canvas;
 use crate::tool::Tools;
 use crate::tool_bar::ToolBar;
-use iced::{container, executor};
+use iced::{container, executor, scrollable};
 use iced::{Align, Application, Color, Command, Container, Element, Length, Row, Settings};
 
 mod canvas;
@@ -21,6 +21,7 @@ type OxiElement<'a> = Element<'a, Message>;
 struct OxiPaint {
     tool_bar: ToolBar,
     canvas: Canvas,
+    canvas_scrollable_state: scrollable::State,
 }
 
 #[derive(Default)]
@@ -35,7 +36,12 @@ impl Application for OxiPaint {
         let tools = Tools::list_tools();
         let tool_bar = ToolBar::new(tools, 200);
         let canvas = Canvas::new(800, 600);
-        let app = OxiPaint { tool_bar, canvas };
+        let canvas_scrollable_state = scrollable::State::new();
+        let app = OxiPaint {
+            tool_bar,
+            canvas,
+            canvas_scrollable_state,
+        };
         (app, OxiCommand::none())
     }
 
@@ -61,7 +67,9 @@ impl Application for OxiPaint {
             .align_x(Align::Start);
 
         let raw_canvas = self.canvas.view();
-        let contained_canvas = Container::new(raw_canvas)
+        let scrollable_canvas =
+            scrollable::Scrollable::new(&mut self.canvas_scrollable_state).push(raw_canvas);
+        let contained_canvas = Container::new(scrollable_canvas)
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x()
