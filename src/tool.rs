@@ -1,5 +1,13 @@
+use crate::draw_context::DrawContext;
+use crate::tools::pencil::Pencil;
+use iced_native::input::mouse;
+
 pub trait Tool {
     fn name(&self) -> String;
+
+    fn on_mouse_button_press(&self, _button: mouse::Button, _context: &DrawContext) {}
+    fn on_mouse_button_release(&self, _button: mouse::Button, _context: &DrawContext) {}
+    fn on_cursor_move(&self, _context: &DrawContext) {}
 }
 
 pub struct Tools {
@@ -13,8 +21,7 @@ impl Tools {
 
     pub fn list_tools() -> Tools {
         let mut tools = Tools::new();
-        tools.push(DummyTool::from("Pencil".to_owned()));
-        tools.push(DummyTool::from("Brush".to_owned()));
+        tools.push(Pencil::new());
         tools.push(DummyTool::from("Dragon blood".to_owned()));
         tools.push(DummyTool::from("Infernal flame".to_owned()));
         tools
@@ -26,6 +33,10 @@ impl Tools {
 
     pub fn iter(&self) -> impl Iterator<Item = &dyn Tool> {
         self.tools.iter().map(|boxed| boxed.as_ref())
+    }
+
+    pub fn as_vec(&self) -> &Vec<Box<dyn Tool>> {
+        &self.tools
     }
 }
 

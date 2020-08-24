@@ -5,6 +5,7 @@ use iced::button;
 use iced::{Button, Color, Column, Length, Text};
 
 pub struct ToolBar {
+    tools: Tools,
     tool_items: Vec<ToolItem>,
     selected_tool_index: Option<usize>,
     width: u16,
@@ -18,6 +19,7 @@ impl ToolBar {
                 .enumerate()
                 .map(|(i, tool)| ToolItem::new(tool, i))
                 .collect(),
+            tools,
             width,
             selected_tool_index: None,
         }
@@ -42,6 +44,10 @@ impl ToolBar {
 
     pub fn select_tool(&mut self, tool_index: usize) {
         self.selected_tool_index = Some(tool_index);
+    }
+
+    pub fn get_selected_tool(&self) -> Option<&dyn Tool> {
+        self.selected_tool_index.and_then(|index| self.tools.as_vec().get(index)).map(|x| x.as_ref())
     }
 }
 

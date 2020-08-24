@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 iced = { version = "0.1", features = ["image"] }
+iced_native = "0.2.2"
+iced_wgpu = "0.2.3"

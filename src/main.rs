@@ -1,27 +1,64 @@
 extern crate iced;
+extern crate iced_native;
 use crate::canvas::Canvas;
 use crate::tool::Tools;
 use crate::tool_bar::ToolBar;
 use iced::{container, executor, scrollable};
 use iced::{Align, Application, Color, Command, Container, Element, Length, Row, Settings};
+use iced_native::input::mouse;
+use iced_native::Point;
+use crate::draw_context::DrawContext;
 
 mod canvas;
+mod draw_context;
 mod tool;
 mod tool_bar;
+mod tools;
 mod workarounds;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
     SelectTool(usize),
+    CursorMoved(Point),
+    MouseButtonPressed {
+        cursor_position: Point,
+        button: mouse::Button,
+    },
+    MouseButtonReleased {
+        cursor_position: Point,
+        button: mouse::Button,
+    },
 }
 
 type OxiCommand = Command<Message>;
 type OxiElement<'a> = Element<'a, Message>;
 
 struct OxiPaint {
+    draw_context: DrawContext,
     tool_bar: ToolBar,
     canvas: Canvas,
     canvas_scrollable_state: scrollable::State,
+}
+
+impl OxiPaint {
+    fn handle_mouse_button_pressed(&mut self, button: mouse::Button) {
+        if let Some(tool) = self.tool_bar.get_selected_tool() {
+            tool.on_mouse_button_press(button, &self.draw_context);
+        }
+    }
+
+    fn handle_mouse_button_released(&mut self, button: mouse::Button) {
+        if let Some(tool) = self.tool_bar.get_selected_tool() {
+            tool.on_mouse_button_release(button, &self.draw_context);
+        }
+    }
+
+    fn handle_cursor_moved(&mut self) {
+        if let Some(tool) = self.tool_bar.get_selected_tool() {
+            tool.on_cursor_move(&self.draw_context);
+        }
+    }
+
 }
 
 #[derive(Default)]
@@ -38,6 +75,7 @@ impl Application for OxiPaint {
         let canvas = Canvas::new(800, 600);
         let canvas_scrollable_state = scrollable::State::new();
         let app = OxiPaint {
+            draw_context: DrawContext::default(),
             tool_bar,
             canvas,
             canvas_scrollable_state,
@@ -53,6 +91,24 @@ impl Application for OxiPaint {
         match message {
             Message::SelectTool(tool_index) => {
                 self.tool_bar.select_tool(tool_index);
+            }
+            Message::CursorMoved(point) => {
+                self.draw_context.cursor_position = point;
+                self.handle_cursor_moved();
+            }
+            Message::MouseButtonPressed {
+                cursor_position,
+                button,
+            } => {
+                self.draw_context.cursor_position = cursor_position;
+                self.handle_mouse_button_pressed(button);
+            }
+            Message::MouseButtonReleased {
+                cursor_position,
+                button,
+            } => {
+                self.draw_context.cursor_position = cursor_position;
+                self.handle_mouse_button_released(button);
             }
         }
         OxiCommand::none()
