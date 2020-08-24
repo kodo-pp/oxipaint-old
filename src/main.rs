@@ -42,20 +42,20 @@ struct OxiPaint {
 
 impl OxiPaint {
     fn handle_mouse_button_pressed(&mut self, button: mouse::Button) {
-        if let Some(tool) = self.tool_bar.get_selected_tool() {
-            tool.on_mouse_button_press(button, &self.draw_context);
+        if let Some(tool) = self.tool_bar.get_selected_tool_mut() {
+            tool.on_mouse_button_press(button, &self.draw_context, &mut self.canvas);
         }
     }
 
     fn handle_mouse_button_released(&mut self, button: mouse::Button) {
-        if let Some(tool) = self.tool_bar.get_selected_tool() {
-            tool.on_mouse_button_release(button, &self.draw_context);
+        if let Some(tool) = self.tool_bar.get_selected_tool_mut() {
+            tool.on_mouse_button_release(button, &self.draw_context, &mut self.canvas);
         }
     }
 
     fn handle_cursor_moved(&mut self) {
-        if let Some(tool) = self.tool_bar.get_selected_tool() {
-            tool.on_cursor_move(&self.draw_context);
+        if let Some(tool) = self.tool_bar.get_selected_tool_mut() {
+            tool.on_cursor_move(&self.draw_context, &mut self.canvas);
         }
     }
 }

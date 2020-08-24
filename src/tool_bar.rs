@@ -46,10 +46,17 @@ impl ToolBar {
         self.selected_tool_index = Some(tool_index);
     }
 
-    pub fn get_selected_tool(&self) -> Option<&dyn Tool> {
+    pub fn get_selected_tool_mut(&mut self) -> Option<&mut (dyn Tool + 'static)> {
+        /*
         self.selected_tool_index
-            .and_then(|index| self.tools.as_vec().get(index))
-            .map(|x| x.as_ref())
+            .and_then(|index| self.tools.as_vec_mut().get_mut(index))
+            .map(|x| x.as_mut())
+        */
+        if let Some(index) = self.selected_tool_index {
+            self.tools.as_vec_mut().get_mut(index).map(|x| x.as_mut())
+        } else {
+            None
+        }
     }
 }
 

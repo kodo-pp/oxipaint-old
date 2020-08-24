@@ -1,3 +1,4 @@
+use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
 use crate::tools::pencil::Pencil;
 use iced_native::input::mouse;
@@ -5,9 +6,21 @@ use iced_native::input::mouse;
 pub trait Tool {
     fn name(&self) -> String;
 
-    fn on_mouse_button_press(&self, _button: mouse::Button, _context: &DrawContext) {}
-    fn on_mouse_button_release(&self, _button: mouse::Button, _context: &DrawContext) {}
-    fn on_cursor_move(&self, _context: &DrawContext) {}
+    fn on_mouse_button_press(
+        &mut self,
+        _button: mouse::Button,
+        _context: &DrawContext,
+        _canvas: &mut Canvas,
+    ) {
+    }
+    fn on_mouse_button_release(
+        &mut self,
+        _button: mouse::Button,
+        _context: &DrawContext,
+        _canvas: &mut Canvas,
+    ) {
+    }
+    fn on_cursor_move(&mut self, _context: &DrawContext, _canvas: &mut Canvas) {}
 }
 
 pub struct Tools {
@@ -35,8 +48,8 @@ impl Tools {
         self.tools.iter().map(|boxed| boxed.as_ref())
     }
 
-    pub fn as_vec(&self) -> &Vec<Box<dyn Tool>> {
-        &self.tools
+    pub fn as_vec_mut(&mut self) -> &mut Vec<Box<dyn Tool>> {
+        &mut self.tools
     }
 }
 
