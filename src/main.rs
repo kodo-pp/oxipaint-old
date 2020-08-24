@@ -1,13 +1,13 @@
 extern crate iced;
 extern crate iced_native;
 use crate::canvas::Canvas;
+use crate::draw_context::DrawContext;
 use crate::tool::Tools;
 use crate::tool_bar::ToolBar;
 use iced::{container, executor, scrollable};
 use iced::{Align, Application, Color, Command, Container, Element, Length, Row, Settings};
 use iced_native::input::mouse;
 use iced_native::Point;
-use crate::draw_context::DrawContext;
 
 mod canvas;
 mod draw_context;
@@ -58,7 +58,6 @@ impl OxiPaint {
             tool.on_cursor_move(&self.draw_context);
         }
     }
-
 }
 
 #[derive(Default)]

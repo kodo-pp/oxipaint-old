@@ -16,11 +16,17 @@ impl Tool for Pencil {
     }
 
     fn on_mouse_button_press(&self, button: mouse::Button, context: &DrawContext) {
-        println!("Mouse press! button = {:?}, context = {:?}", button, context);
+        println!(
+            "Mouse press! button = {:?}, context = {:?}",
+            button, context
+        );
     }
 
     fn on_mouse_button_release(&self, button: mouse::Button, context: &DrawContext) {
-        println!("Mouse release! button = {:?}, context = {:?}", button, context);
+        println!(
+            "Mouse release! button = {:?}, context = {:?}",
+            button, context
+        );
     }
 
     fn on_cursor_move(&self, context: &DrawContext) {

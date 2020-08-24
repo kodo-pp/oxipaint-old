@@ -1,6 +1,6 @@
 use crate::tool::{Tool, Tools};
 use crate::workarounds::SimpleButtonStylesheet;
-use crate::{OxiElement, Message};
+use crate::{Message, OxiElement};
 use iced::button;
 use iced::{Button, Color, Column, Length, Text};
 
@@ -47,7 +47,9 @@ impl ToolBar {
     }
 
     pub fn get_selected_tool(&self) -> Option<&dyn Tool> {
-        self.selected_tool_index.and_then(|index| self.tools.as_vec().get(index)).map(|x| x.as_ref())
+        self.selected_tool_index
+            .and_then(|index| self.tools.as_vec().get(index))
+            .map(|x| x.as_ref())
     }
 }
 
