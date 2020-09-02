@@ -1,8 +1,8 @@
 use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
 use crate::tool::Tool;
-use iced::{Point, Vector};
-use iced_native::input::mouse;
+use crate::{Point, Redraw};
+use sdl2::mouse::MouseButton;
 
 pub struct Pencil {
     state: PencilState,
@@ -23,73 +23,72 @@ impl Tool for Pencil {
 
     fn on_mouse_button_press(
         &mut self,
-        button: mouse::Button,
+        button: MouseButton,
         context: &DrawContext,
         _canvas: &mut Canvas,
-    ) {
+    ) -> Redraw {
         match button {
-            mouse::Button::Left => {
-                let point = to_u32_vector(context.cursor_position);
+            MouseButton::Left => {
+                let point = context.cursor_position;
                 self.state = PencilState::Active { last_point: point };
             }
             _ => (),
         }
-        /*
-        println!(
-            "Mouse press! button = {:?}, context = {:?}",
-            button, context
-        );
-        */
+        Redraw::Dont
     }
 
     fn on_mouse_button_release(
         &mut self,
-        button: mouse::Button,
+        button: MouseButton,
         _context: &DrawContext,
         _canvas: &mut Canvas,
-    ) {
+    ) -> Redraw {
         match button {
-            mouse::Button::Left => {
+            MouseButton::Left => {
                 self.state = PencilState::Inactive;
             }
             _ => (),
         }
-        /*
-        println!(
-            "Mouse release! button = {:?}, context = {:?}",
-            button, context
-        );
-        */
+        Redraw::Dont
     }
 
-    fn on_cursor_move(&mut self, context: &DrawContext, canvas: &mut Canvas) {
+    fn on_cursor_move(&mut self, context: &DrawContext, canvas: &mut Canvas) -> Redraw {
         use PencilState::*;
         let state_copy = self.state;
         match state_copy {
-            Inactive => (),
-            Active { last_point } => {
-                canvas.set_at(last_point.x, last_point.y, context.primary_color);
-                let point = to_u32_vector(context.cursor_position);
-                canvas.set_at(point.x, point.y, context.primary_color);
-                self.state = Active { last_point: point };
+            Inactive => Redraw::Dont,
+            Active { last_point: None } => {
+                // Previous point outside the canvas
+                self.state = Active {
+                    last_point: context.cursor_position,
+                };
+                Redraw::Dont
+            }
+            Active {
+                last_point: Some(last_point),
+            } => {
+                if let Some(current_point) = context.cursor_position {
+                    // Previous and current points within the canvas
+                    canvas.set_at(last_point.x, last_point.y, context.primary_color);
+                    canvas.set_at(current_point.x, current_point.y, context.primary_color);
+                    self.state = Active {
+                        last_point: Some(current_point),
+                    };
+                    Redraw::Do
+                } else {
+                    // Previous point within, but current point outside the canvas
+                    self.state = Active { last_point: None };
+                    Redraw::Dont
+                }
             }
         }
-        /*
-        println!("Mouse move! context = {:?}", context);
-        */
     }
 }
 
-fn to_u32_vector(point: Point) -> Vector<u32> {
-    let x = point.x as u32;
-    let y = point.y as u32;
-    Vector::new(x, y)
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum PencilState {
     Inactive,
-    Active { last_point: Vector<u32> },
+    Active { last_point: Option<Point> },
 }
 
 impl PencilState {

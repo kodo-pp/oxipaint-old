@@ -1,164 +1,278 @@
-extern crate iced;
-extern crate iced_native;
-use crate::canvas::Canvas;
-use crate::draw_context::DrawContext;
-use crate::tool::Tools;
-use crate::tool_bar::ToolBar;
-use iced::{container, executor, scrollable};
-use iced::{Align, Application, Color, Command, Container, Element, Length, Row, Settings};
-use iced_native::input::mouse;
-use iced_native::Point;
-
 mod canvas;
 mod draw_context;
 mod tool;
-mod tool_bar;
 mod tools;
-mod workarounds;
 
-#[derive(Debug, Clone, Copy)]
-pub enum Message {
-    SelectTool(usize),
-    CursorMoved(Point),
-    MouseButtonPressed {
-        cursor_position: Point,
-        button: mouse::Button,
-    },
-    MouseButtonReleased {
-        cursor_position: Point,
-        button: mouse::Button,
-    },
-}
+use crate::canvas::Canvas;
+use crate::draw_context::DrawContext;
+use crate::tool::Tool;
+use sdl2::event::{Event, WindowEvent};
+use sdl2::mouse::MouseButton;
+use sdl2::pixels::Color;
+use sdl2::render::TextureCreator;
+use sdl2::video::{Window, WindowContext};
+use sdl2::EventPump;
+use std::error::Error;
+use std::fmt;
 
-type OxiCommand = Command<Message>;
-type OxiElement<'a> = Element<'a, Message>;
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SdlError(String);
 
-struct OxiPaint {
-    draw_context: DrawContext,
-    tool_bar: ToolBar,
-    canvas: Canvas,
-    canvas_scrollable_state: scrollable::State,
-}
-
-impl OxiPaint {
-    fn handle_mouse_button_pressed(&mut self, button: mouse::Button) {
-        if let Some(tool) = self.tool_bar.get_selected_tool_mut() {
-            tool.on_mouse_button_press(button, &self.draw_context, &mut self.canvas);
-        }
-    }
-
-    fn handle_mouse_button_released(&mut self, button: mouse::Button) {
-        if let Some(tool) = self.tool_bar.get_selected_tool_mut() {
-            tool.on_mouse_button_release(button, &self.draw_context, &mut self.canvas);
-        }
-    }
-
-    fn handle_cursor_moved(&mut self) {
-        if let Some(tool) = self.tool_bar.get_selected_tool_mut() {
-            tool.on_cursor_move(&self.draw_context, &mut self.canvas);
-        }
+impl From<String> for SdlError {
+    fn from(s: String) -> Self {
+        Self(s)
     }
 }
 
-#[derive(Default)]
-struct OxiPaintFlags {}
+impl fmt::Display for SdlError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(formatter, "SDL error: {}", self.0)
+    }
+}
 
-impl Application for OxiPaint {
-    type Executor = executor::Default;
-    type Message = Message;
-    type Flags = OxiPaintFlags;
+impl Error for SdlError {}
 
-    fn new(_flags: Self::Flags) -> (Self, OxiCommand) {
-        let tools = Tools::list_tools();
-        let tool_bar = ToolBar::new(tools, 200);
-        let canvas = Canvas::new(800, 600);
-        let canvas_scrollable_state = scrollable::State::new();
-        let app = OxiPaint {
-            draw_context: DrawContext::default(),
-            tool_bar,
-            canvas,
-            canvas_scrollable_state,
-        };
-        (app, OxiCommand::none())
+pub type SdlCanvas = sdl2::render::Canvas<Window>;
+
+pub struct SdlApp {
+    sdl_canvas: SdlCanvas,
+    event_pump: EventPump,
+    texture_creator: TextureCreator<WindowContext>,
+}
+
+impl SdlApp {
+    pub fn new() -> Result<SdlApp, SdlError> {
+        let sdl_context = sdl2::init()?;
+        let video_subsystem = sdl_context.video()?;
+        let window = video_subsystem
+            .window("Window Title", 800, 600)
+            .position_centered()
+            .resizable()
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let sdl_canvas = window
+            .into_canvas()
+            .accelerated()
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let texture_creator = sdl_canvas.texture_creator();
+
+        let event_pump = sdl_context.event_pump()?;
+
+        Ok(SdlApp {
+            sdl_canvas,
+            event_pump,
+            texture_creator,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+struct OxiPaintState {
+    termination: bool,
+    redraw: bool,
+}
+
+impl Default for OxiPaintState {
+    fn default() -> OxiPaintState {
+        OxiPaintState {
+            termination: false,
+            redraw: true,
+        }
+    }
+}
+
+mod adhoc_oxipaint {
+    use super::*;
+
+    pub struct OxiPaint {
+        sdl_app: SdlApp,
+        draw_context: DrawContext,
+        tools: Vec<Box<dyn Tool>>,
+        selected_tool: Option<usize>,
+        canvas: Canvas,
+        state: OxiPaintState,
     }
 
-    fn title(&self) -> String {
-        "Oxipaint".to_owned()
-    }
+    impl OxiPaint {
+        pub fn new() -> Result<OxiPaint, SdlError> {
+            let sdl_app = SdlApp::new()?;
+            let draw_context = DrawContext::default();
+            let tools = tools::list();
+            assert!(!tools.is_empty());
+            let selected_tool = Some(0);
+            let canvas = Canvas::new(800, 600);
+            let state = OxiPaintState::default();
 
-    fn update(&mut self, message: Message) -> OxiCommand {
-        match message {
-            Message::SelectTool(tool_index) => {
-                self.tool_bar.select_tool(tool_index);
+            Ok(OxiPaint {
+                sdl_app,
+                draw_context,
+                tools,
+                selected_tool,
+                canvas,
+                state,
+            })
+        }
+
+        fn handle_event(&mut self, event: Event) {
+            match event {
+                Event::Quit { .. } => {
+                    self.enqueue_termination();
+                }
+                Event::MouseMotion { x, y, .. } => {
+                    self.update_cursor_position(Point::new(x as u32, y as u32));
+                    self.handle_cursor_movement();
+                }
+                Event::MouseButtonDown {
+                    x, y, mouse_btn, ..
+                } => {
+                    self.update_cursor_position(Point::new(x as u32, y as u32));
+                    self.handle_mouse_button_press(mouse_btn);
+                }
+                Event::MouseButtonUp {
+                    x, y, mouse_btn, ..
+                } => {
+                    self.update_cursor_position(Point::new(x as u32, y as u32));
+                    self.handle_mouse_button_release(mouse_btn);
+                }
+                _ => (),
             }
-            Message::CursorMoved(point) => {
-                self.draw_context.cursor_position = point;
-                self.handle_cursor_moved();
-            }
-            Message::MouseButtonPressed {
-                cursor_position,
-                button,
-            } => {
-                self.draw_context.cursor_position = cursor_position;
-                self.handle_mouse_button_pressed(button);
-            }
-            Message::MouseButtonReleased {
-                cursor_position,
-                button,
-            } => {
-                self.draw_context.cursor_position = cursor_position;
-                self.handle_mouse_button_released(button);
+
+            if should_redraw_on(&event) {
+                self.enqueue_redraw();
             }
         }
-        OxiCommand::none()
-    }
 
-    fn view(&mut self) -> OxiElement {
-        let raw_tool_bar = self.tool_bar.view();
-        let contained_tool_bar = Container::new(raw_tool_bar)
-            .width(Length::Shrink)
-            .height(Length::Fill)
-            .center_y()
-            .align_x(Align::Start);
+        fn handle_mouse_button_press(&mut self, button: MouseButton) {
+            if let Some(index) = self.selected_tool {
+                let tool = self.tools[index].as_mut();
+                if let Redraw::Do =
+                    tool.on_mouse_button_press(button, &self.draw_context, &mut self.canvas)
+                {
+                    self.enqueue_redraw();
+                }
+            }
+        }
 
-        let raw_canvas = self.canvas.view();
-        let scrollable_canvas =
-            scrollable::Scrollable::new(&mut self.canvas_scrollable_state).push(raw_canvas);
-        let contained_canvas = Container::new(scrollable_canvas)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x()
-            .center_y();
+        fn handle_mouse_button_release(&mut self, button: MouseButton) {
+            if let Some(index) = self.selected_tool {
+                let tool = self.tools[index].as_mut();
+                if let Redraw::Do =
+                    tool.on_mouse_button_release(button, &self.draw_context, &mut self.canvas)
+                {
+                    self.enqueue_redraw();
+                }
+            }
+        }
 
-        let row = Row::new()
-            .spacing(20)
-            .padding(10)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .push(contained_tool_bar)
-            .push(contained_canvas);
+        fn handle_cursor_movement(&mut self) {
+            if let Some(index) = self.selected_tool {
+                let tool = self.tools[index].as_mut();
+                if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.canvas) {
+                    self.enqueue_redraw();
+                }
+            }
+        }
 
-        Container::new(row)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x()
-            .center_y()
-            .style(MainWindowStylesheet {})
-            .into()
+        fn update_cursor_position(&mut self, position: Point) {
+            self.draw_context.cursor_position = self.translate_cursor_position(position);
+        }
+
+        fn translate_cursor_position(&self, position: Point) -> Option<Point> {
+            if position.x < self.canvas.width() && position.y < self.canvas.height() {
+                Some(position)
+            } else {
+                None
+            }
+        }
+
+        fn enqueue_termination(&mut self) {
+            self.state.termination = true;
+        }
+
+        fn enqueue_redraw(&mut self) {
+            self.state.redraw = true;
+        }
+
+        fn should_terminate(&self) -> bool {
+            self.state.termination
+        }
+
+        fn should_redraw(&self) -> bool {
+            self.state.redraw
+        }
+
+        fn redrawn(&mut self) {
+            self.state.redraw = false;
+        }
+
+        pub fn run(mut self) {
+            while !self.should_terminate() {
+                if self.should_redraw() {
+                    self.sdl_app.sdl_canvas.set_draw_color(Color::BLACK);
+                    self.sdl_app.sdl_canvas.clear();
+                    self.canvas.draw(
+                        &mut self.sdl_app.sdl_canvas,
+                        &mut self.sdl_app.texture_creator,
+                    );
+                    self.sdl_app.sdl_canvas.present();
+                    self.redrawn();
+                }
+
+                let event = self.sdl_app.event_pump.wait_event();
+                self.handle_event(event);
+            }
+        }
     }
 }
 
-struct MainWindowStylesheet {}
+pub use adhoc_oxipaint::OxiPaint;
 
-impl container::StyleSheet for MainWindowStylesheet {
-    fn style(&self) -> container::Style {
-        container::Style {
-            background: Some(Color::from_rgb(0.7, 0.7, 0.7).into()),
-            ..container::Style::default()
-        }
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct Point {
+    x: u32,
+    y: u32,
+}
+
+impl Point {
+    pub fn new(x: u32, y: u32) -> Point {
+        Point { x, y }
     }
 }
 
-fn main() {
-    OxiPaint::run(Settings::default());
+impl From<(u32, u32)> for Point {
+    fn from(tuple: (u32, u32)) -> Point {
+        let (x, y) = tuple;
+        Point::new(x, y)
+    }
+}
+
+impl Into<(u32, u32)> for Point {
+    fn into(self) -> (u32, u32) {
+        (self.x, self.y)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Redraw {
+    Do,
+    Dont,
+}
+
+fn should_redraw_on(event: &Event) -> bool {
+    match event {
+        Event::Window { win_event, .. } => match win_event {
+            WindowEvent::SizeChanged { .. } => true,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let oxipaint = OxiPaint::new()?;
+    oxipaint.run();
+    Ok(())
 }
