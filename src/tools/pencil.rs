@@ -69,6 +69,7 @@ impl Tool for Pencil {
             } => {
                 if let Some(current_point) = context.cursor_position {
                     // Previous and current points within the canvas
+                    println!("{:?} -> {:?}", last_point, current_point);
                     canvas.set_at(last_point.x, last_point.y, context.primary_color);
                     canvas.set_at(current_point.x, current_point.y, context.primary_color);
                     self.state = Active {

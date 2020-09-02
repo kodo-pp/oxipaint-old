@@ -71,11 +71,11 @@ impl Canvas {
         // TODO: implement a more efficient way of updating the texture (w/o overwriting it
         // completely every time)
         let mut texture = texture_creator
-            .create_texture_static(PixelFormatEnum::BGRA8888, self.width(), self.height())
+            .create_texture_streaming(PixelFormatEnum::ARGB8888, self.width(), self.height())
             .expect("Failed to create a texture from the canvas");
 
         texture
-            .update(None, &self.data, self.width() as usize)
+            .update(None, &self.data, self.width as usize * Self::BPP)
             .expect("Failed to fill the texture with the image data");
 
         texture
