@@ -24,24 +24,33 @@ impl Canvas {
 
     #[allow(dead_code)]
     pub fn get_at(&self, x: u32, y: u32) -> Color {
+        self.try_get_at(x, y).unwrap()
+    }
+
+    pub fn try_get_at(&self, x: u32, y: u32) -> Option<Color> {
         // TODO: avoid multiple bound checking
-        let offset = self.calc_offset(x, y).unwrap();
+        let offset = self.calc_offset(x, y)?;
         let slice = &self.data[offset..offset + Self::BPP];
         let b = slice[0];
         let g = slice[1];
         let r = slice[2];
         let a = slice[3];
-        Color::RGBA(r, g, b, a)
+        Some(Color::RGBA(r, g, b, a))
     }
 
     pub fn set_at(&mut self, x: u32, y: u32, color: Color) {
+        self.try_set_at(x, y, color).unwrap();
+    }
+
+    pub fn try_set_at(&mut self, x: u32, y: u32, color: Color) -> Option<()> {
         // TODO: avoid multiple bound checking
-        let offset = self.calc_offset(x, y).unwrap();
+        let offset = self.calc_offset(x, y)?;
         let slice = &mut self.data[offset..offset + Self::BPP];
         slice[0] = color.b;
         slice[1] = color.g;
         slice[2] = color.r;
         slice[3] = color.a;
+        Some(())
     }
 
     pub fn width(&self) -> u32 {

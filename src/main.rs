@@ -1,5 +1,6 @@
 mod canvas;
 mod draw_context;
+mod draw_primitives;
 mod tool;
 mod tools;
 
