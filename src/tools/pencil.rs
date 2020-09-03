@@ -70,7 +70,6 @@ impl Tool for Pencil {
             } => {
                 if let Some(current_point) = context.cursor_position {
                     // Previous and current points within the canvas
-                    println!("Line {:?} -> {:?}", last_point, current_point);
                     draw_primitives::hard_line(last_point, current_point, |x, y| {
                         canvas.set_at(x, y, context.primary_color)
                     });

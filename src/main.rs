@@ -123,21 +123,28 @@ mod adhoc_oxipaint {
                     self.enqueue_termination();
                 }
                 Event::MouseMotion { x, y, .. } => {
-                    self.update_cursor_position(Point::new(x as u32, y as u32));
+                    self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
                     self.handle_cursor_movement();
                 }
                 Event::MouseButtonDown {
                     x, y, mouse_btn, ..
                 } => {
-                    self.update_cursor_position(Point::new(x as u32, y as u32));
+                    self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
                     self.handle_mouse_button_press(mouse_btn);
                 }
                 Event::MouseButtonUp {
                     x, y, mouse_btn, ..
                 } => {
-                    self.update_cursor_position(Point::new(x as u32, y as u32));
+                    self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
                     self.handle_mouse_button_release(mouse_btn);
                 }
+                Event::Window { win_event, .. } => match win_event {
+                    WindowEvent::Leave => {
+                        self.update_cursor_position(None);
+                        self.handle_cursor_movement();
+                    },
+                    _ => (),
+                },
                 _ => (),
             }
 
@@ -177,16 +184,18 @@ mod adhoc_oxipaint {
             }
         }
 
-        fn update_cursor_position(&mut self, position: Point) {
+        fn update_cursor_position(&mut self, position: Option<Point>) {
             self.draw_context.cursor_position = self.translate_cursor_position(position);
         }
 
-        fn translate_cursor_position(&self, position: Point) -> Option<Point> {
-            if position.x < self.canvas.width() && position.y < self.canvas.height() {
-                Some(position)
-            } else {
-                None
-            }
+        fn translate_cursor_position(&self, position: Option<Point>) -> Option<Point> {
+            position.and_then(|position| {
+                if position.x < self.canvas.width() && position.y < self.canvas.height() {
+                    Some(position)
+                } else {
+                    None
+                }
+            })
         }
 
         fn enqueue_termination(&mut self) {
