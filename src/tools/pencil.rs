@@ -2,7 +2,7 @@ use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
 use crate::draw_primitives;
 use crate::tool::Tool;
-use crate::{Point, Redraw};
+use crate::{Point, Redraw, TranslatedPoint};
 use sdl2::mouse::MouseButton;
 
 pub struct Pencil {
@@ -58,7 +58,7 @@ impl Tool for Pencil {
         let state_copy = self.state;
         match state_copy {
             Inactive => Redraw::Dont,
-            Active { last_point: None } => {
+            Active { last_point: TranslatedPoint::OutsideWindow } | Active { last_point: TranslatedPoint::OutsideCanvas(_) } => {
                 // Previous point outside the canvas
                 self.state = Active {
                     last_point: context.cursor_position,
@@ -66,22 +66,20 @@ impl Tool for Pencil {
                 Redraw::Dont
             }
             Active {
-                last_point: Some(last_point),
+                last_point: TranslatedPoint::WithinCanvas(last_point),
             } => {
-                if let Some(current_point) = context.cursor_position {
+                if let TranslatedPoint::WithinCanvas(current_point) = context.cursor_position {
                     // Previous and current points within the canvas
-                    draw_primitives::hard_line(last_point, current_point, |x, y| {
+                    draw_primitives::HardLine::new(last_point, current_point, 1.0).draw(&mut |x, y| {
                         canvas.set_at(x, y, context.primary_color)
                     });
-                    canvas.set_at(last_point.x, last_point.y, context.primary_color);
-                    canvas.set_at(current_point.x, current_point.y, context.primary_color);
                     self.state = Active {
-                        last_point: Some(current_point),
+                        last_point: TranslatedPoint::WithinCanvas(current_point),
                     };
                     Redraw::Do
                 } else {
                     // Previous point within, but current point outside the canvas
-                    self.state = Active { last_point: None };
+                    self.state = Active { last_point: TranslatedPoint::OutsideWindow };
                     Redraw::Dont
                 }
             }
@@ -89,10 +87,10 @@ impl Tool for Pencil {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum PencilState {
     Inactive,
-    Active { last_point: Option<Point> },
+    Active { last_point: TranslatedPoint },
 }
 
 impl PencilState {

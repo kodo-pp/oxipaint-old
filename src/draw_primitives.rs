@@ -1,57 +1,115 @@
-use crate::Point;
+use crate::geometry::{Point, Rectangle};
 use std::mem;
 
-pub fn hard_line(a: Point, b: Point, mut put_pixel: impl FnMut(u32, u32)) {
-    if a.x == b.x {
-        vertical_hard_line(a.x, a.y, b.y, put_pixel);
-    } else if a.y == b.y {
-        horizontal_hard_line(a.y, a.x, b.x, put_pixel);
-    } else {
-        // TODO: Fix this shit
-        let ax = a.x as i64;
-        let bx = b.x as i64;
-        let ay = a.y as i64;
-        let by = b.y as i64;
-        let w = (ax - bx).abs() as u32;
-        let h = (ay - by).abs() as u32;
-        if w > h {
-            let k = (by - ay) as f64 / (bx - ax) as f64;
-            for t in 0..=w {
-                let dx = (bx - ax).signum() as i64 * t as i64;
-                let dy = dx as f64 * k;
-                let x_rounded = ax + dx;
-                let y_rounded = (ay as f64 + dy + 0.5).floor();
-                put_pixel(x_rounded as u32, y_rounded as u32);
+mod hard_line {
+    pub enum Intersection {
+        Contained,
+        Overlaps,
+        Disjoint,
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HardLine {
+    a: Point,
+    b: Point,
+    thickness: f64,
+}
+
+
+fn sort2<T: PartialOrd>(mut a: T, mut b: T) -> (T, T) {
+    if a > b {
+        mem::swap(&mut a, &mut b);
+    }
+    (a, b)
+}
+
+impl HardLine {
+    pub fn new(a: Point, b: Point, thickness: f64) -> HardLine {
+        HardLine { a, b, thickness }
+    }
+
+    fn scanline_points(&self) -> (Point, Point, Point, Point) {
+        let normal_x = self.b.y - self.a.y;
+        let normal_y = self.a.x - self.b.y;
+        let scale = normal_x.hypot(normal_y);
+        let normal_x = normal_x / scale;
+        let normal_y = normal_y / scale;
+
+        let p1 = Point::new(
+            self.a.x + normal_x * self.thickness / 2.0,
+            self.a.y + normal_y * self.thickness / 2.0,
+        );
+
+        let p2 = Point::new(
+            self.a.x - normal_x * self.thickness / 2.0,
+            self.a.y - normal_y * self.thickness / 2.0,
+        );
+
+        let p3 = Point::new(
+            self.b.x + normal_x * self.thickness / 2.0,
+            self.b.y + normal_y * self.thickness / 2.0,
+        );
+
+        let p4 = Point::new(
+            self.b.x - normal_x * self.thickness / 2.0,
+            self.b.y - normal_y * self.thickness / 2.0,
+        );
+        let mut points = [p1, p2, p3, p4];
+        points.sort_by(|p, q| p.y.partial_cmp(&q.y).unwrap());
+        (points[0], points[1], points[2], points[3])
+    }
+
+    pub fn draw(&self, put_pixel: &mut impl FnMut(u32, u32)) {
+        let (top, topmid, bottommid, bottom) = self.scanline_points();
+        let mut y = top.y.floor() as i64;
+        while y as f64 + 1e-9 < topmid.y {
+            let dy = y as f64 - top.y + 0.5;
+            let k_topmid = dy / (topmid.y - top.y);
+            let k_bottommid = dy / (bottommid.y - top.y);
+            let dx_topmid = k_topmid * (topmid.x - top.x);
+            let dx_bottommid = k_bottommid * (bottommid.x - top.x);
+            let x_topmid = top.x + dx_topmid;
+            let x_bottommid = top.x + dx_bottommid;
+            let (x_left, x_right) = sort2(x_topmid, x_bottommid);
+            let x_left = (x_left - 1e-9).round() as u32;
+            let x_right = (x_right + 1e-9).round() as u32;
+            for x in x_left..=x_right {
+                put_pixel(x, y as u32);
             }
-        } else {
-            let k = (bx - ax) as f64 / (by - ay) as f64;
-            for t in 0..=h {
-                let dy = (by - ay).signum() as i64 * t as i64;
-                let dx = dy as f64 * k;
-                let y_rounded = ay + dy;
-                let x_rounded = (ax as f64 + dx + 0.5).floor();
-                put_pixel(x_rounded as u32, y_rounded as u32);
-            }
+            y += 1;
         }
-    }
-}
-
-fn vertical_hard_line(x: u32, mut y1: u32, mut y2: u32, mut put_pixel: impl FnMut(u32, u32)) {
-    if y1 > y2 {
-        mem::swap(&mut y1, &mut y2);
-    }
-
-    for y in y1..=y2 {
-        put_pixel(x, y);
-    }
-}
-
-fn horizontal_hard_line(y: u32, mut x1: u32, mut x2: u32, mut put_pixel: impl FnMut(u32, u32)) {
-    if x1 > x2 {
-        mem::swap(&mut x1, &mut x2);
-    }
-
-    for x in x1..=x2 {
-        put_pixel(x, y);
+        while y as f64 + 1e-9 < bottommid.y {
+            let dy = y as f64 - top.y + 0.5;
+            let k_bottommid = dy / (bottommid.y - top.y);
+            let dx_bottommid = k_bottommid * (bottommid.x - top.x);
+            let x_bottommid = top.x + dx_bottommid;
+            let distance_x = self.thickness.powi(2) / (top.x - topmid.x);
+            let x_topmid = x_bottommid - distance_x;
+            let (x_left, x_right) = sort2(x_topmid, x_bottommid);
+            let x_left = (x_left - 1e-9).round() as u32;
+            let x_right = (x_right + 1e-9).round() as u32;
+            for x in x_left..=x_right {
+                put_pixel(x, y as u32);
+            }
+            y += 1;
+        }
+        while y as f64 + 1e-9 < bottom.y {
+            let dy = bottom.y - y as f64 - 0.5;
+            let k_topmid = dy / (bottom.y - topmid.y);
+            let k_bottommid = dy / (bottom.y - bottommid.y);
+            let dx_topmid = k_topmid * (topmid.x - bottom.x);
+            let dx_bottommid = k_bottommid * (bottommid.x - bottom.x);
+            let x_topmid = bottom.x + dx_topmid;
+            let x_bottommid = bottom.x + dx_bottommid;
+            let (x_left, x_right) = sort2(x_topmid, x_bottommid);
+            let x_left = (x_left - 1e-9).round() as u32;
+            let x_right = (x_right + 1e-9).round() as u32;
+            for x in x_left..=x_right {
+                put_pixel(x, y as u32);
+            }
+            y += 1;
+        }
     }
 }

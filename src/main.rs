@@ -3,10 +3,12 @@ mod draw_context;
 mod draw_primitives;
 mod tool;
 mod tools;
+mod geometry;
 
 use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
 use crate::tool::Tool;
+use crate::geometry::Point;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
@@ -142,7 +144,7 @@ mod adhoc_oxipaint {
                     WindowEvent::Leave => {
                         self.update_cursor_position(None);
                         self.handle_cursor_movement();
-                    },
+                    }
                     _ => (),
                 },
                 _ => (),
@@ -184,18 +186,24 @@ mod adhoc_oxipaint {
             }
         }
 
-        fn update_cursor_position(&mut self, position: Option<Point>) {
+        fn update_cursor_position(&mut self, position: Option<Point<u32>>) {
             self.draw_context.cursor_position = self.translate_cursor_position(position);
         }
 
-        fn translate_cursor_position(&self, position: Option<Point>) -> Option<Point> {
-            position.and_then(|position| {
-                if position.x < self.canvas.width() && position.y < self.canvas.height() {
-                    Some(position)
-                } else {
-                    None
+        fn translate_cursor_position(&self, position: Option<Point<u32>>) -> TranslatedPoint {
+            match position {
+                Some(position) => {
+                    let translated_x = position.x as f64 + 0.5;
+                    let translated_y = position.y as f64 + 0.5;
+                    let translated_point = Point::new(translated_x, translated_y);
+                    if position.x < self.canvas.width() && position.y < self.canvas.height() {
+                        TranslatedPoint::WithinCanvas(translated_point)
+                    } else {
+                        TranslatedPoint::OutsideCanvas(translated_point)
+                    }
                 }
-            })
+                None => TranslatedPoint::OutsideWindow,
+            }
         }
 
         fn enqueue_termination(&mut self) {
@@ -240,29 +248,11 @@ mod adhoc_oxipaint {
 
 pub use adhoc_oxipaint::OxiPaint;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Point {
-    x: u32,
-    y: u32,
-}
-
-impl Point {
-    pub fn new(x: u32, y: u32) -> Point {
-        Point { x, y }
-    }
-}
-
-impl From<(u32, u32)> for Point {
-    fn from(tuple: (u32, u32)) -> Point {
-        let (x, y) = tuple;
-        Point::new(x, y)
-    }
-}
-
-impl Into<(u32, u32)> for Point {
-    fn into(self) -> (u32, u32) {
-        (self.x, self.y)
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TranslatedPoint {
+    WithinCanvas(Point),
+    OutsideCanvas(Point),
+    OutsideWindow,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
