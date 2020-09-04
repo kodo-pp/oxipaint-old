@@ -35,7 +35,12 @@ pub struct Rectangle<T = f64> {
 
 impl<T> Rectangle<T> {
     pub fn new(left: T, top: T, width: T, height: T) -> Rectangle<T> {
-        Rectangle { left, top, width, height }
+        Rectangle {
+            left,
+            top,
+            width,
+            height,
+        }
     }
 }
 

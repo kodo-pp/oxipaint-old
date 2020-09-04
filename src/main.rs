@@ -1,14 +1,14 @@
 mod canvas;
 mod draw_context;
 mod draw_primitives;
+mod geometry;
 mod tool;
 mod tools;
-mod geometry;
 
 use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
-use crate::tool::Tool;
 use crate::geometry::Point;
+use crate::tool::Tool;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;

@@ -7,7 +7,6 @@ pub struct HardLine {
     thickness: f64,
 }
 
-
 impl HardLine {
     pub fn new(a: Point, b: Point, thickness: f64) -> HardLine {
         HardLine { a, b, thickness }
@@ -22,23 +21,23 @@ impl HardLine {
         let normal_y = normal_y / normal_scale;
 
         let p1 = Point::new(
-            self.a.x + (normal_x)  * self.thickness / 2.0,
-            self.a.y + (normal_y ) * self.thickness / 2.0,
+            self.a.x + (normal_x) * self.thickness / 2.0,
+            self.a.y + (normal_y) * self.thickness / 2.0,
         );
 
         let p2 = Point::new(
-            self.a.x -normal_x * self.thickness / 2.0,
-            self.a.y -normal_y* self.thickness / 2.0,
+            self.a.x - normal_x * self.thickness / 2.0,
+            self.a.y - normal_y * self.thickness / 2.0,
         );
 
         let p3 = Point::new(
-            self.b.x -normal_x * self.thickness / 2.0,
-            self.b.y -normal_y * self.thickness / 2.0,
+            self.b.x - normal_x * self.thickness / 2.0,
+            self.b.y - normal_y * self.thickness / 2.0,
         );
 
         let p4 = Point::new(
-            self.b.x + normal_x  * self.thickness / 2.0,
-            self.b.y + normal_y  * self.thickness / 2.0,
+            self.b.x + normal_x * self.thickness / 2.0,
+            self.b.y + normal_y * self.thickness / 2.0,
         );
 
         (p1, p2, p3, p4)
