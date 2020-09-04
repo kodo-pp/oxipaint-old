@@ -1,4 +1,5 @@
 use crate::geometry::Point;
+use crate::history::{Diff, History, DiffDirection, SparsePixelDelta};
 use crate::SdlCanvas;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
@@ -23,7 +24,10 @@ impl Canvas {
         }
     }
 
-    #[allow(dead_code)]
+    pub fn area(&self) -> usize {
+        self.width as usize * self.height as usize
+    }
+
     pub fn get_at(&self, x: u32, y: u32) -> Color {
         self.try_get_at(x, y).unwrap()
     }
@@ -32,11 +36,24 @@ impl Canvas {
         // TODO: avoid multiple bound checking
         let offset = self.calc_offset(x, y)?;
         let slice = &self.data[offset..offset + Self::BPP];
+        Some(Self::color_from_slice(slice))
+    }
+
+    fn color_from_slice(slice: &[u8]) -> Color {
+        assert!(slice.len() == 4);
         let b = slice[0];
         let g = slice[1];
         let r = slice[2];
         let a = slice[3];
-        Some(Color::RGBA(r, g, b, a))
+        Color::RGBA(r, g, b, a)
+    }
+
+    fn color_to_slice(color: Color, slice: &mut [u8]) {
+        assert!(slice.len() == 4);
+        slice[0] = color.b;
+        slice[1] = color.g;
+        slice[2] = color.r;
+        slice[3] = color.a;
     }
 
     pub fn set_at(&mut self, x: u32, y: u32, color: Color) {
@@ -47,10 +64,7 @@ impl Canvas {
         // TODO: avoid multiple bound checking
         let offset = self.calc_offset(x, y)?;
         let slice = &mut self.data[offset..offset + Self::BPP];
-        slice[0] = color.b;
-        slice[1] = color.g;
-        slice[2] = color.r;
-        slice[3] = color.a;
+        Self::color_to_slice(color, slice);
         Some(())
     }
 
@@ -72,6 +86,51 @@ impl Canvas {
         sdl_canvas
             .copy(&texture, None, Some(dest_rect))
             .expect("Failed to draw texture");
+    }
+
+    pub fn create_shadow_data(&self) -> Vec<u8> {
+        self.data.clone()
+    }
+
+    pub fn update_shadow_data(&self, shadow_data: &mut Vec<u8>) {
+        shadow_data.clear();
+        shadow_data.extend_from_slice(&self.data);
+    }
+
+    pub fn compare_shadow_data(&self, shadow_data: &Vec<u8>) -> Diff {
+        let mut deltas = Vec::new();
+        for index in 0..self.area() {
+            let left = index * Self::BPP;
+            let right = left + Self::BPP;
+            let before = Self::color_from_slice(&shadow_data[left..right]);
+            let after = Self::color_from_slice(&self.data[left..right]);
+            if before != after {
+                deltas.push(SparsePixelDelta {
+                    index,
+                    before,
+                    after,
+                });
+            }
+        }
+        Diff::Sparse(deltas)
+    }
+
+    pub fn apply_diff(&mut self, diff: &Diff, direction: DiffDirection) {
+        match diff {
+            Diff::Sparse(deltas) => {
+                for delta in deltas.iter() {
+                    let left = delta.index * Self::BPP;
+                    let right = left + Self::BPP;
+                    let slice = &mut self.data[left..right];
+                    let color = match direction {
+                        DiffDirection::Normal => delta.after,
+                        DiffDirection::Reverse => delta.before,
+                    };
+
+                    Self::color_to_slice(color, slice);
+                }
+            }
+        }
     }
 
     pub fn contains_point(&self, point: Point) -> bool {

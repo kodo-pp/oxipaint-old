@@ -1,6 +1,6 @@
-use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
 use crate::draw_primitives;
+use crate::editor::Editor;
 use crate::tool::Tool;
 use crate::{Redraw, TranslatedPoint};
 use sdl2::mouse::MouseButton;
@@ -26,12 +26,13 @@ impl Tool for Pencil {
         &mut self,
         button: MouseButton,
         context: &DrawContext,
-        _canvas: &mut Canvas,
+        editor: &mut Editor,
     ) -> Redraw {
         match button {
             MouseButton::Left => {
                 let point = context.cursor_position;
                 self.state = PencilState::Active { last_point: point };
+                editor.begin();
             }
             _ => (),
         }
@@ -42,18 +43,19 @@ impl Tool for Pencil {
         &mut self,
         button: MouseButton,
         _context: &DrawContext,
-        _canvas: &mut Canvas,
+        editor: &mut Editor,
     ) -> Redraw {
         match button {
             MouseButton::Left => {
                 self.state = PencilState::Inactive;
+                editor.end();
             }
             _ => (),
         }
         Redraw::Dont
     }
 
-    fn on_cursor_move(&mut self, context: &DrawContext, canvas: &mut Canvas) -> Redraw {
+    fn on_cursor_move(&mut self, context: &DrawContext, editor: &mut Editor) -> Redraw {
         use PencilState::*;
         use TranslatedPoint::*;
         let state_copy = self.state;
@@ -62,7 +64,7 @@ impl Tool for Pencil {
             Active {
                 last_point: OutsideWindow,
             } => {
-                // Previous point outside the canvas
+                // Previous point outside the editor
                 self.state = Active {
                     last_point: context.cursor_position,
                 };
@@ -77,15 +79,15 @@ impl Tool for Pencil {
                 match context.cursor_position {
                     WithinCanvas(current_point) | OutsideCanvas(current_point) => {
                         // Previous and current points within the window
-                        if canvas.contains_point(last_point) {
-                            canvas.set_at(
+                        if editor.canvas().contains_point(last_point) {
+                            editor.canvas_mut().set_at(
                                 last_point.x as u32,
                                 last_point.y as u32,
                                 context.primary_color,
                             );
                         }
-                        if canvas.contains_point(current_point) {
-                            canvas.try_set_at(
+                        if editor.canvas().contains_point(current_point) {
+                            editor.canvas_mut().try_set_at(
                                 current_point.x as u32,
                                 current_point.y as u32,
                                 context.primary_color,
@@ -93,7 +95,7 @@ impl Tool for Pencil {
                         }
                         draw_primitives::HardLine::new(last_point, current_point, 1.0).draw(
                             &mut |x, y| {
-                                canvas.try_set_at(x, y, context.primary_color);
+                                editor.canvas_mut().try_set_at(x, y, context.primary_color);
                             },
                         );
                         self.state = Active {

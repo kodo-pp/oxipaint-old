@@ -1,4 +1,4 @@
-use crate::canvas::Canvas;
+use crate::editor::Editor;
 use crate::draw_context::DrawContext;
 use crate::Redraw;
 use sdl2::mouse::MouseButton;
@@ -10,7 +10,7 @@ pub trait Tool {
         &mut self,
         _button: MouseButton,
         _context: &DrawContext,
-        _canvas: &mut Canvas,
+        _editor: &mut Editor,
     ) -> Redraw {
         Redraw::Dont
     }
@@ -19,12 +19,12 @@ pub trait Tool {
         &mut self,
         _button: MouseButton,
         _context: &DrawContext,
-        _canvas: &mut Canvas,
+        _editor: &mut Editor,
     ) -> Redraw {
         Redraw::Dont
     }
 
-    fn on_cursor_move(&mut self, _context: &DrawContext, _canvas: &mut Canvas) -> Redraw {
+    fn on_cursor_move(&mut self, _context: &DrawContext, _editor: &mut Editor) -> Redraw {
         Redraw::Dont
     }
 }

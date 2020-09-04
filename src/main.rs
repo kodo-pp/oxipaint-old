@@ -1,15 +1,18 @@
 mod canvas;
 mod draw_context;
 mod draw_primitives;
+mod editor;
 mod geometry;
+mod history;
 mod tool;
 mod tools;
 
-use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
+use crate::editor::Editor;
 use crate::geometry::Point;
 use crate::tool::Tool;
 use sdl2::event::{Event, WindowEvent};
+use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::render::TextureCreator;
@@ -95,7 +98,7 @@ mod adhoc_oxipaint {
         draw_context: DrawContext,
         tools: Vec<Box<dyn Tool>>,
         selected_tool: Option<usize>,
-        canvas: Canvas,
+        editor: Editor,
         state: OxiPaintState,
     }
 
@@ -106,7 +109,7 @@ mod adhoc_oxipaint {
             let tools = tools::list();
             assert!(!tools.is_empty());
             let selected_tool = Some(0);
-            let canvas = Canvas::new(800, 600);
+            let editor = Editor::new(800, 600);
             let state = OxiPaintState::default();
 
             Ok(OxiPaint {
@@ -114,7 +117,7 @@ mod adhoc_oxipaint {
                 draw_context,
                 tools,
                 selected_tool,
-                canvas,
+                editor,
                 state,
             })
         }
@@ -140,6 +143,30 @@ mod adhoc_oxipaint {
                     self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
                     self.handle_mouse_button_release(mouse_btn);
                 }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Z),
+                    keymod: Mod::LCTRLMOD,
+                    ..
+                } => {
+                    if self.editor.undo().is_some() {
+                        println!("Undo OK");
+                        self.enqueue_redraw();
+                    } else {
+                        println!("Cannot undo at the beginning of the timeline");
+                    }
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Y),
+                    keymod: Mod::LCTRLMOD,
+                    ..
+                } => {
+                    if self.editor.redo().is_some() {
+                        println!("Redo OK");
+                        self.enqueue_redraw();
+                    } else {
+                        println!("Cannot redo, since travelling into the future is not supported");
+                    }
+                }
                 Event::Window { win_event, .. } => match win_event {
                     WindowEvent::Leave => {
                         self.update_cursor_position(None);
@@ -159,7 +186,7 @@ mod adhoc_oxipaint {
             if let Some(index) = self.selected_tool {
                 let tool = self.tools[index].as_mut();
                 if let Redraw::Do =
-                    tool.on_mouse_button_press(button, &self.draw_context, &mut self.canvas)
+                    tool.on_mouse_button_press(button, &self.draw_context, &mut self.editor)
                 {
                     self.enqueue_redraw();
                 }
@@ -170,7 +197,7 @@ mod adhoc_oxipaint {
             if let Some(index) = self.selected_tool {
                 let tool = self.tools[index].as_mut();
                 if let Redraw::Do =
-                    tool.on_mouse_button_release(button, &self.draw_context, &mut self.canvas)
+                    tool.on_mouse_button_release(button, &self.draw_context, &mut self.editor)
                 {
                     self.enqueue_redraw();
                 }
@@ -180,7 +207,7 @@ mod adhoc_oxipaint {
         fn handle_cursor_movement(&mut self) {
             if let Some(index) = self.selected_tool {
                 let tool = self.tools[index].as_mut();
-                if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.canvas) {
+                if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.editor) {
                     self.enqueue_redraw();
                 }
             }
@@ -196,7 +223,9 @@ mod adhoc_oxipaint {
                     let translated_x = position.x as f64 + 0.5;
                     let translated_y = position.y as f64 + 0.5;
                     let translated_point = Point::new(translated_x, translated_y);
-                    if position.x < self.canvas.width() && position.y < self.canvas.height() {
+                    if position.x < self.editor.canvas().width()
+                        && position.y < self.editor.canvas().height()
+                    {
                         TranslatedPoint::WithinCanvas(translated_point)
                     } else {
                         TranslatedPoint::OutsideCanvas(translated_point)
@@ -231,7 +260,7 @@ mod adhoc_oxipaint {
                 if self.should_redraw() {
                     self.sdl_app.sdl_canvas.set_draw_color(Color::BLACK);
                     self.sdl_app.sdl_canvas.clear();
-                    self.canvas.draw(
+                    self.editor.canvas_mut().draw(
                         &mut self.sdl_app.sdl_canvas,
                         &mut self.sdl_app.texture_creator,
                     );
