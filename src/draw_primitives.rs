@@ -32,8 +32,9 @@ impl HardLine {
 
     fn scanline_points(&self) -> (Point, Point, Point, Point) {
         let normal_x = self.b.y - self.a.y;
-        let normal_y = self.a.x - self.b.y;
+        let normal_y = self.a.x - self.b.x;
         let scale = normal_x.hypot(normal_y);
+        assert!(scale.abs() > 1e-9);
         let normal_x = normal_x / scale;
         let normal_y = normal_y / scale;
 
@@ -62,9 +63,15 @@ impl HardLine {
     }
 
     pub fn draw(&self, put_pixel: &mut impl FnMut(u32, u32)) {
+        println!("{:?}", self);
         let (top, topmid, bottommid, bottom) = self.scanline_points();
+        println!("T {:?}, Tm {:?}, Bm {:?}, B {:?}", top, topmid, bottommid, bottom);
         let mut y = top.y.floor() as i64;
         while y as f64 + 1e-9 < topmid.y {
+            if (topmid.y - top.y).abs() < 1e-9 {
+                break;
+            }
+            println!("Loop 1: y = {}", y);
             let dy = y as f64 - top.y + 0.5;
             let k_topmid = dy / (topmid.y - top.y);
             let k_bottommid = dy / (bottommid.y - top.y);
@@ -80,22 +87,26 @@ impl HardLine {
             }
             y += 1;
         }
-        while y as f64 + 1e-9 < bottommid.y {
+        while y as f64 + 0.5 + 1e-9 < bottommid.y {
+            println!("Loop 2: y = {}", y);
             let dy = y as f64 - top.y + 0.5;
             let k_bottommid = dy / (bottommid.y - top.y);
             let dx_bottommid = k_bottommid * (bottommid.x - top.x);
             let x_bottommid = top.x + dx_bottommid;
-            let distance_x = self.thickness.powi(2) / (top.x - topmid.x);
+            let distance_x = (top.y - topmid.y).powi(2) / (top.x - topmid.x) + top.x - topmid.x;
+            println!("    dist_x = {}", distance_x);
             let x_topmid = x_bottommid - distance_x;
             let (x_left, x_right) = sort2(x_topmid, x_bottommid);
+            println!("xL, xR = {}, {}", x_left, x_right);
             let x_left = (x_left - 1e-9).round() as u32;
             let x_right = (x_right + 1e-9).round() as u32;
-            for x in x_left..=x_right {
+            for x in x_left..x_right {
                 put_pixel(x, y as u32);
             }
             y += 1;
         }
         while y as f64 + 1e-9 < bottom.y {
+            println!("Loop 3: y = {}", y);
             let dy = bottom.y - y as f64 - 0.5;
             let k_topmid = dy / (bottom.y - topmid.y);
             let k_bottommid = dy / (bottom.y - bottommid.y);
