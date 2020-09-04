@@ -1,14 +1,4 @@
 use crate::geometry::{Point, Rectangle};
-use std::mem;
-
-mod hard_line {
-    pub enum Intersection {
-        Contained,
-        Overlaps,
-        Disjoint,
-    }
-}
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HardLine {
@@ -17,13 +7,6 @@ pub struct HardLine {
     thickness: f64,
 }
 
-
-fn sort2<T: PartialOrd>(mut a: T, mut b: T) -> (T, T) {
-    if a > b {
-        mem::swap(&mut a, &mut b);
-    }
-    (a, b)
-}
 
 impl HardLine {
     pub fn new(a: Point, b: Point, thickness: f64) -> HardLine {

@@ -1,4 +1,4 @@
-use crate::{Point, TranslatedPoint};
+use crate::TranslatedPoint;
 use sdl2::pixels::Color;
 
 #[derive(Debug, Clone, Copy)]

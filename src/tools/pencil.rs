@@ -2,7 +2,7 @@ use crate::canvas::Canvas;
 use crate::draw_context::DrawContext;
 use crate::draw_primitives;
 use crate::tool::Tool;
-use crate::{Point, Redraw, TranslatedPoint};
+use crate::{Redraw, TranslatedPoint};
 use sdl2::mouse::MouseButton;
 
 pub struct Pencil {

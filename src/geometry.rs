@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul};
+use std::ops::Add;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Point<T = f64> {
@@ -64,12 +64,6 @@ impl<T: Clone + Add<Output = T>> Rectangle<T> {
 
     pub fn bottom(&self) -> T {
         self.top() + self.height()
-    }
-}
-
-impl<T: Clone + Mul<T, Output = O>, O> Rectangle<T> {
-    pub fn area(&self) -> O {
-        self.width() * self.height()
     }
 }
 
