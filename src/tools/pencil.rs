@@ -55,14 +55,12 @@ impl Tool for Pencil {
 
     fn on_cursor_move(&mut self, context: &DrawContext, canvas: &mut Canvas) -> Redraw {
         use PencilState::*;
+        use TranslatedPoint::*;
         let state_copy = self.state;
         match state_copy {
             Inactive => Redraw::Dont,
             Active {
-                last_point: TranslatedPoint::OutsideWindow,
-            }
-            | Active {
-                last_point: TranslatedPoint::OutsideCanvas(_),
+                last_point: OutsideWindow,
             } => {
                 // Previous point outside the canvas
                 self.state = Active {
@@ -71,32 +69,45 @@ impl Tool for Pencil {
                 Redraw::Dont
             }
             Active {
-                last_point: TranslatedPoint::WithinCanvas(last_point),
+                last_point: WithinCanvas(last_point),
+            }
+            | Active {
+                last_point: OutsideCanvas(last_point),
             } => {
-                if let TranslatedPoint::WithinCanvas(current_point) = context.cursor_position {
-                    // Previous and current points within the canvas
-                    canvas.set_at(
-                        last_point.x as u32,
-                        last_point.y as u32,
-                        context.primary_color,
-                    );
-                    canvas.set_at(
-                        current_point.x as u32,
-                        current_point.y as u32,
-                        context.primary_color,
-                    );
-                    draw_primitives::HardLine::new(last_point, current_point, 1.0)
-                        .draw(&mut |x, y| canvas.set_at(x, y, context.primary_color));
-                    self.state = Active {
-                        last_point: TranslatedPoint::WithinCanvas(current_point),
-                    };
-                    Redraw::Do
-                } else {
-                    // Previous point within, but current point outside the canvas
-                    self.state = Active {
-                        last_point: TranslatedPoint::OutsideWindow,
-                    };
-                    Redraw::Dont
+                match context.cursor_position {
+                    WithinCanvas(current_point) | OutsideCanvas(current_point) => {
+                        // Previous and current points within the window
+                        if canvas.contains_point(last_point) {
+                            canvas.set_at(
+                                last_point.x as u32,
+                                last_point.y as u32,
+                                context.primary_color,
+                            );
+                        }
+                        if canvas.contains_point(current_point) {
+                            canvas.try_set_at(
+                                current_point.x as u32,
+                                current_point.y as u32,
+                                context.primary_color,
+                            );
+                        }
+                        draw_primitives::HardLine::new(last_point, current_point, 1.0).draw(
+                            &mut |x, y| {
+                                canvas.try_set_at(x, y, context.primary_color);
+                            },
+                        );
+                        self.state = Active {
+                            last_point: WithinCanvas(current_point),
+                        };
+                        Redraw::Do
+                    }
+                    OutsideWindow => {
+                        // Previous point within, but current point outside the window
+                        self.state = Active {
+                            last_point: OutsideWindow,
+                        };
+                        Redraw::Dont
+                    }
                 }
             }
         }

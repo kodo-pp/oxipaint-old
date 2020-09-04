@@ -1,3 +1,4 @@
+use crate::geometry::Point;
 use crate::SdlCanvas;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
@@ -71,6 +72,13 @@ impl Canvas {
         sdl_canvas
             .copy(&texture, None, Some(dest_rect))
             .expect("Failed to draw texture");
+    }
+
+    pub fn contains_point(&self, point: Point) -> bool {
+        point.x >= 0.0
+            && point.y >= 0.0
+            && point.x < self.width() as f64
+            && point.y < self.height() as f64
     }
 
     fn sdl_texture<'a>(
