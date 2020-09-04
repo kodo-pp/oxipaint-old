@@ -30,97 +30,97 @@ impl HardLine {
         HardLine { a, b, thickness }
     }
 
-    fn scanline_points(&self) -> (Point, Point, Point, Point) {
+    fn points(&self) -> (Point, Point, Point, Point) {
         let normal_x = self.b.y - self.a.y;
         let normal_y = self.a.x - self.b.x;
-        let scale = normal_x.hypot(normal_y);
-        assert!(scale.abs() > 1e-9);
-        let normal_x = normal_x / scale;
-        let normal_y = normal_y / scale;
+        let normal_scale = normal_x.hypot(normal_y);
+        assert!(normal_scale.abs() > 1e-9);
+        let normal_x = normal_x / normal_scale;
+        let normal_y = normal_y / normal_scale;
 
         let p1 = Point::new(
-            self.a.x + normal_x * self.thickness / 2.0,
-            self.a.y + normal_y * self.thickness / 2.0,
+            self.a.x + (normal_x)  * self.thickness / 2.0,
+            self.a.y + (normal_y ) * self.thickness / 2.0,
         );
 
         let p2 = Point::new(
-            self.a.x - normal_x * self.thickness / 2.0,
-            self.a.y - normal_y * self.thickness / 2.0,
+            self.a.x -normal_x * self.thickness / 2.0,
+            self.a.y -normal_y* self.thickness / 2.0,
         );
 
         let p3 = Point::new(
-            self.b.x + normal_x * self.thickness / 2.0,
-            self.b.y + normal_y * self.thickness / 2.0,
+            self.b.x -normal_x * self.thickness / 2.0,
+            self.b.y -normal_y * self.thickness / 2.0,
         );
 
         let p4 = Point::new(
-            self.b.x - normal_x * self.thickness / 2.0,
-            self.b.y - normal_y * self.thickness / 2.0,
+            self.b.x + normal_x  * self.thickness / 2.0,
+            self.b.y + normal_y  * self.thickness / 2.0,
         );
-        let mut points = [p1, p2, p3, p4];
-        points.sort_by(|p, q| p.y.partial_cmp(&q.y).unwrap());
-        (points[0], points[1], points[2], points[3])
+
+        (p1, p2, p3, p4)
+    }
+
+    fn contains(&self, point: Point) -> bool {
+        let (p1, p2, p3, p4) = self.points();
+        let v1x = p2.x - p1.x;
+        let v1y = p2.y - p1.y;
+        let v2x = p3.x - p2.x;
+        let v2y = p3.y - p2.y;
+        let v3x = p4.x - p3.x;
+        let v3y = p4.y - p3.y;
+        let v4x = p1.x - p4.x;
+        let v4y = p1.y - p4.y;
+        let u1x = point.x - p1.x;
+        let u1y = point.y - p1.y;
+        let u2x = point.x - p2.x;
+        let u2y = point.y - p2.y;
+        let u3x = point.x - p3.x;
+        let u3y = point.y - p3.y;
+        let u4x = point.x - p4.x;
+        let u4y = point.y - p4.y;
+        let cross1 = v1x * u1y - v1y * u1x;
+        let cross2 = v2x * u2y - v2y * u2x;
+        let cross3 = v3x * u3y - v3y * u3x;
+        let cross4 = v4x * u4y - v4y * u4x;
+        let sign1 = cross1.signum();
+        let sign2 = cross2.signum();
+        let sign3 = cross3.signum();
+        let sign4 = cross4.signum();
+        sign1 == sign2 && sign2 == sign3 && sign3 == sign4
     }
 
     pub fn draw(&self, put_pixel: &mut impl FnMut(u32, u32)) {
-        println!("{:?}", self);
-        let (top, topmid, bottommid, bottom) = self.scanline_points();
-        println!("T {:?}, Tm {:?}, Bm {:?}, B {:?}", top, topmid, bottommid, bottom);
-        let mut y = top.y.floor() as i64;
-        while y as f64 + 1e-9 < topmid.y {
-            if (topmid.y - top.y).abs() < 1e-9 {
-                break;
+        let rect = self.bounding_box().bounding_int_rectangle();
+        for pixel_y in rect.top()..=rect.bottom() {
+            if pixel_y < 0 {
+                continue;
             }
-            println!("Loop 1: y = {}", y);
-            let dy = y as f64 - top.y + 0.5;
-            let k_topmid = dy / (topmid.y - top.y);
-            let k_bottommid = dy / (bottommid.y - top.y);
-            let dx_topmid = k_topmid * (topmid.x - top.x);
-            let dx_bottommid = k_bottommid * (bottommid.x - top.x);
-            let x_topmid = top.x + dx_topmid;
-            let x_bottommid = top.x + dx_bottommid;
-            let (x_left, x_right) = sort2(x_topmid, x_bottommid);
-            let x_left = (x_left - 1e-9).round() as u32;
-            let x_right = (x_right + 1e-9).round() as u32;
-            for x in x_left..=x_right {
-                put_pixel(x, y as u32);
+
+            for pixel_x in rect.left()..=rect.right() {
+                if pixel_x < 0 {
+                    continue;
+                }
+
+                let point = Point::new(pixel_x as f64 + 0.5, pixel_y as f64 + 0.5);
+                if self.contains(point) {
+                    put_pixel(pixel_x as u32, pixel_y as u32);
+                }
             }
-            y += 1;
         }
-        while y as f64 + 0.5 + 1e-9 < bottommid.y {
-            println!("Loop 2: y = {}", y);
-            let dy = y as f64 - top.y + 0.5;
-            let k_bottommid = dy / (bottommid.y - top.y);
-            let dx_bottommid = k_bottommid * (bottommid.x - top.x);
-            let x_bottommid = top.x + dx_bottommid;
-            let distance_x = (top.y - topmid.y).powi(2) / (top.x - topmid.x) + top.x - topmid.x;
-            println!("    dist_x = {}", distance_x);
-            let x_topmid = x_bottommid - distance_x;
-            let (x_left, x_right) = sort2(x_topmid, x_bottommid);
-            println!("xL, xR = {}, {}", x_left, x_right);
-            let x_left = (x_left - 1e-9).round() as u32;
-            let x_right = (x_right + 1e-9).round() as u32;
-            for x in x_left..x_right {
-                put_pixel(x, y as u32);
-            }
-            y += 1;
-        }
-        while y as f64 + 1e-9 < bottom.y {
-            println!("Loop 3: y = {}", y);
-            let dy = bottom.y - y as f64 - 0.5;
-            let k_topmid = dy / (bottom.y - topmid.y);
-            let k_bottommid = dy / (bottom.y - bottommid.y);
-            let dx_topmid = k_topmid * (topmid.x - bottom.x);
-            let dx_bottommid = k_bottommid * (bottommid.x - bottom.x);
-            let x_topmid = bottom.x + dx_topmid;
-            let x_bottommid = bottom.x + dx_bottommid;
-            let (x_left, x_right) = sort2(x_topmid, x_bottommid);
-            let x_left = (x_left - 1e-9).round() as u32;
-            let x_right = (x_right + 1e-9).round() as u32;
-            for x in x_left..=x_right {
-                put_pixel(x, y as u32);
-            }
-            y += 1;
-        }
+    }
+
+    fn bounding_box(&self) -> Rectangle {
+        let (p1, p2, p3, p4) = self.points();
+        let min_x = p1.x.min(p2.x).min(p3.x).min(p4.x) - 1.0;
+        let min_y = p1.y.min(p2.y).min(p3.y).min(p4.y) - 1.0;
+        let max_x = p1.x.max(p2.x).max(p3.x).max(p4.x) + 1.0;
+        let max_y = p1.y.max(p2.y).max(p3.y).max(p4.y) + 1.0;
+
+        let left = min_x;
+        let top = min_y;
+        let width = max_x - min_x;
+        let height = max_y - min_y;
+        Rectangle::new(left, top, width, height)
     }
 }

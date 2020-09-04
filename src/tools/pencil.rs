@@ -70,6 +70,8 @@ impl Tool for Pencil {
             } => {
                 if let TranslatedPoint::WithinCanvas(current_point) = context.cursor_position {
                     // Previous and current points within the canvas
+                    canvas.set_at(last_point.x as u32, last_point.y as u32, context.primary_color);
+                    canvas.set_at(current_point.x as u32, current_point.y as u32, context.primary_color);
                     draw_primitives::HardLine::new(last_point, current_point, 1.0).draw(&mut |x, y| {
                         canvas.set_at(x, y, context.primary_color)
                     });
