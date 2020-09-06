@@ -1,5 +1,5 @@
-use crate::editor::Editor;
 use crate::draw_context::DrawContext;
+use crate::editor::Editor;
 use crate::Redraw;
 use sdl2::mouse::MouseButton;
 

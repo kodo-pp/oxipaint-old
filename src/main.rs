@@ -13,7 +13,7 @@ use crate::geometry::Point;
 use crate::tool::Tool;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
-use sdl2::mouse::{MouseButton, MouseWheelDirection};
+use sdl2::mouse::{MouseButton};
 use sdl2::pixels::Color;
 use sdl2::render::TextureCreator;
 use sdl2::video::{Window, WindowContext};
@@ -173,7 +173,7 @@ mod adhoc_oxipaint {
                         self.handle_cursor_movement();
                     }
                     _ => (),
-                }
+                },
                 Event::MouseWheel { y, .. } if y > 0 => {
                     if let Some(new_scale) = self.editor.scale_up() {
                         println!("Scale increased to {}", new_scale);

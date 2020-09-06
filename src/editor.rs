@@ -1,6 +1,6 @@
 use crate::canvas::Canvas;
 use crate::geometry::Scale;
-use crate::history::{Diff, DiffDirection, History};
+use crate::history::{DiffDirection, History};
 use crate::SdlCanvas;
 use sdl2::rect::Rect;
 use sdl2::render::TextureCreator;

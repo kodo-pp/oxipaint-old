@@ -42,10 +42,9 @@ impl History {
     pub fn record(&mut self, diff: Diff) {
         self.consistency_check();
         self.diffs.reserve(self.cursor + 1);
-        self.diffs.resize_with(
-            self.cursor,
-            || panic!("It is a bug to increase the size of the history vector"),
-        );
+        self.diffs.resize_with(self.cursor, || {
+            panic!("It is a bug to increase the size of the history vector")
+        });
         self.diffs.push(diff);
         self.cursor += 1;
         self.consistency_check();

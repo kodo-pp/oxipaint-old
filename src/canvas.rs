@@ -1,5 +1,5 @@
 use crate::geometry::{Point, Scale};
-use crate::history::{Diff, DiffDirection, History, SparsePixelDelta};
+use crate::history::{Diff, DiffDirection, SparsePixelDelta};
 use crate::SdlCanvas;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
@@ -29,6 +29,7 @@ impl Canvas {
         self.width as usize * self.height as usize
     }
 
+    #[allow(dead_code)]
     pub fn get_at(&self, x: u32, y: u32) -> Color {
         self.try_get_at(x, y).unwrap()
     }
@@ -163,18 +164,6 @@ impl Canvas {
         }
     }
 
-    fn apply_scale(coord: u32, scale: Scale) -> u32 {
-        match scale {
-            Scale::Times(n) => coord * n,
-        }
-    }
-
-    fn unapply_scale(coord: u32, scale: Scale) -> u32 {
-        match scale {
-            Scale::Times(n) => coord / n,
-        }
-    }
-
     fn sdl_texture<'a>(
         &self,
         texture_creator: &'a mut TextureCreator<WindowContext>,
@@ -201,7 +190,7 @@ impl Canvas {
                             macro_rules! method {
                                 ($obj:ident.$method:ident) => {
                                     |x| $obj.$method(x)
-                                }
+                                };
                             }
 
                             let canvas_x = {
