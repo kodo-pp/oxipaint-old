@@ -1,10 +1,11 @@
-use crate::geometry::Point;
-use crate::history::{Diff, History, DiffDirection, SparsePixelDelta};
+use crate::geometry::{Point, Scale};
+use crate::history::{Diff, DiffDirection, History, SparsePixelDelta};
 use crate::SdlCanvas;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
+use std::convert::TryInto;
 
 pub struct Canvas {
     data: Vec<u8>,
@@ -80,11 +81,17 @@ impl Canvas {
         &self,
         sdl_canvas: &mut SdlCanvas,
         texture_creator: &mut TextureCreator<WindowContext>,
+        scale: Scale,
+        viewport: Rect,
     ) {
-        let texture = self.sdl_texture(texture_creator);
-        let dest_rect = Rect::new(0, 0, self.width(), self.height());
+        let texture = self.sdl_texture(texture_creator, scale, viewport);
+        let query = texture.query();
         sdl_canvas
-            .copy(&texture, None, Some(dest_rect))
+            .copy(
+                &texture,
+                None,
+                Some(Rect::new(0, 0, query.width, query.height)),
+            )
             .expect("Failed to draw texture");
     }
 
@@ -140,18 +147,95 @@ impl Canvas {
             && point.y < self.height() as f64
     }
 
+    fn try_into_x(&self, value: u32) -> Option<u32> {
+        Self::try_into_coord(value, self.width)
+    }
+
+    fn try_into_y(&self, value: u32) -> Option<u32> {
+        Self::try_into_coord(value, self.height)
+    }
+
+    fn try_into_coord(value: u32, limit: u32) -> Option<u32> {
+        if value < limit {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    fn apply_scale(coord: u32, scale: Scale) -> u32 {
+        match scale {
+            Scale::Times(n) => coord * n,
+        }
+    }
+
+    fn unapply_scale(coord: u32, scale: Scale) -> u32 {
+        match scale {
+            Scale::Times(n) => coord / n,
+        }
+    }
+
     fn sdl_texture<'a>(
         &self,
         texture_creator: &'a mut TextureCreator<WindowContext>,
+        scale: Scale,
+        viewport: Rect,
     ) -> Texture<'a> {
         // TODO: implement a more efficient way of updating the texture (w/o overwriting it
         // completely every time)
+        let width = viewport.width().min(scale.apply(self.width));
+        let height = viewport.height().min(scale.apply(self.width));
+        println!("vp = {:?}", viewport);
+
         let mut texture = texture_creator
-            .create_texture_streaming(PixelFormatEnum::ARGB8888, self.width(), self.height())
+            .create_texture_streaming(PixelFormatEnum::ARGB8888, width, height)
             .expect("Failed to create a texture from the canvas");
 
         texture
-            .update(None, &self.data, self.width as usize * Self::BPP)
+            .with_lock(None, |data, pitch| {
+                let pitch_pixels = pitch / Self::BPP;
+
+                for texture_y in 0..height {
+                    for texture_x in 0..width {
+                        let _ = (|| {
+                            macro_rules! method {
+                                ($obj:ident.$method:ident) => {
+                                    |x| $obj.$method(x)
+                                }
+                            }
+
+                            let canvas_x = {
+                                let unchecked: Option<u32> =
+                                    (texture_x as i32 - viewport.left()).try_into().ok();
+                                unchecked
+                                    .map(method!(scale.unapply))
+                                    .and_then(method!(self.try_into_x))?
+                            };
+                            let canvas_y = {
+                                let unchecked: Option<u32> =
+                                    (texture_y as i32 - viewport.top()).try_into().ok();
+                                unchecked
+                                    .map(method!(scale.unapply))
+                                    .and_then(method!(self.try_into_y))?
+                            };
+                            let texture_index =
+                                texture_y as usize * pitch_pixels + texture_x as usize;
+                            let canvas_index =
+                                canvas_y as usize * self.width() as usize + canvas_x as usize;
+
+                            let texture_left = texture_index * Self::BPP;
+                            let texture_right = texture_left + Self::BPP;
+                            let canvas_left = canvas_index * Self::BPP;
+                            let canvas_right = canvas_left + Self::BPP;
+
+                            data[texture_left..texture_right]
+                                .copy_from_slice(&self.data[canvas_left..canvas_right]);
+
+                            Some(())
+                        })();
+                    }
+                }
+            })
             .expect("Failed to fill the texture with the image data");
 
         texture

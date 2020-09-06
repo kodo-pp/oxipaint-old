@@ -83,3 +83,31 @@ impl Rectangle<f64> {
         Rectangle::new(left, top, width, height)
     }
 }
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Scale {
+    Times(u32),
+}
+
+impl Scale {
+    pub fn apply(self, num: u32) -> u32 {
+        match self {
+            Scale::Times(n) => num * n,
+        }
+    }
+
+    pub fn unapply(self, num: u32) -> u32 {
+        match self {
+            Scale::Times(n) => num / n,
+        }
+    }
+}
+
+impl std::fmt::Display for Scale {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Scale::Times(0) => unreachable!(),
+            Scale::Times(n) => write!(fmt, "{}x", n),
+        }
+    }
+}
