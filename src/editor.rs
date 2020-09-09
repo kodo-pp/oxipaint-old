@@ -99,8 +99,8 @@ impl Editor {
         texture_creator: &mut TextureCreator<WindowContext>,
     ) {
         let (w, h) = sdl_canvas.window().drawable_size();
-        let viewport = Rect::new(0, 0, w, h);
+        let visible_rect = Rect::new(0, 0, self.scale.unapply(w), self.scale.unapply(h));
         self.canvas
-            .draw(sdl_canvas, texture_creator, self.scale, viewport);
+            .draw(sdl_canvas, texture_creator, self.scale, visible_rect);
     }
 }

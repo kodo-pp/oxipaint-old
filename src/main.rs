@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 mod canvas;
 mod draw_context;
 mod draw_primitives;
