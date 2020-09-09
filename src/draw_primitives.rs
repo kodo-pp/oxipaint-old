@@ -8,15 +8,23 @@ pub struct HardLine {
 }
 
 impl HardLine {
-    pub fn new(a: Point, b: Point, thickness: f64) -> HardLine {
-        HardLine { a, b, thickness }
+    pub fn try_new(a: Point, b: Point, thickness: f64) -> Option<HardLine> {
+        if Self::are_ends_valid(a, b) {
+            Some(HardLine { a, b, thickness })
+        } else {
+            None
+        }
+    }
+
+    fn are_ends_valid(a: Point, b: Point) -> bool {
+        let length = (a.x - b.x).hypot(a.y - b.y);
+        length > 1e-9
     }
 
     fn points(&self) -> (Point, Point, Point, Point) {
         let normal_x = self.b.y - self.a.y;
         let normal_y = self.a.x - self.b.x;
         let normal_scale = normal_x.hypot(normal_y);
-        assert!(normal_scale.abs() > 1e-9);
         let normal_x = normal_x / normal_scale;
         let normal_y = normal_y / normal_scale;
 

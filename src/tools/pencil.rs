@@ -1,5 +1,5 @@
 use crate::draw_context::DrawContext;
-use crate::draw_primitives;
+use crate::draw_primitives::*;
 use crate::editor::Editor;
 use crate::tool::Tool;
 use crate::{Redraw, TranslatedPoint};
@@ -93,11 +93,14 @@ impl Tool for Pencil {
                                 context.primary_color,
                             );
                         }
-                        draw_primitives::HardLine::new(last_point, current_point, 1.0).draw(
-                            &mut |x, y| {
-                                editor.canvas_mut().try_set_at(x, y, context.primary_color);
-                            },
-                        );
+
+                        if let Some(line) = HardLine::try_new(last_point, current_point, 1.0) {
+                            line.draw(
+                                &mut |x, y| {
+                                    editor.canvas_mut().try_set_at(x, y, context.primary_color);
+                                },
+                            );
+                        }
                         self.state = Active {
                             last_point: WithinCanvas(current_point),
                         };
