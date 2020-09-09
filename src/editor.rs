@@ -1,5 +1,5 @@
 use crate::canvas::Canvas;
-use crate::geometry::Scale;
+use crate::geometry::{Scale, Point};
 use crate::history::{DiffDirection, History};
 use crate::SdlCanvas;
 use sdl2::rect::Rect;
@@ -102,5 +102,9 @@ impl Editor {
         let visible_rect = Rect::new(0, 0, self.scale.unapply(w), self.scale.unapply(h));
         self.canvas
             .draw(sdl_canvas, texture_creator, self.scale, visible_rect);
+    }
+
+    pub fn translate_to_image_point(&self, point: Point) -> Point {
+        point.map(|x| self.scale.unapply(x))
     }
 }

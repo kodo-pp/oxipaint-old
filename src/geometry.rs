@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Mul, Div};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Point<T = f64> {
@@ -9,6 +9,10 @@ pub struct Point<T = f64> {
 impl<T> Point<T> {
     pub fn new(x: T, y: T) -> Point<T> {
         Point { x, y }
+    }
+
+    pub fn map<O>(self, func: impl Fn(T) -> O) -> Point<O> {
+        Point::new(func(self.x), func(self.y))
     }
 }
 
@@ -90,15 +94,15 @@ pub enum Scale {
 }
 
 impl Scale {
-    pub fn apply(self, num: u32) -> u32 {
+    pub fn apply<T: Mul<Output = T> + From<u32>>(self, num: T) -> T {
         match self {
-            Scale::Times(n) => num * n,
+            Scale::Times(n) => num * n.into(),
         }
     }
 
-    pub fn unapply(self, num: u32) -> u32 {
+    pub fn unapply<T: Div<Output = T> + From<u32>>(self, num: T) -> T {
         match self {
-            Scale::Times(n) => num / n,
+            Scale::Times(n) => num / n.into(),
         }
     }
 }

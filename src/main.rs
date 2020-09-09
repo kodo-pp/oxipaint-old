@@ -238,9 +238,10 @@ mod adhoc_oxipaint {
         fn translate_cursor_position(&self, position: Option<Point<u32>>) -> TranslatedPoint {
             match position {
                 Some(position) => {
-                    let translated_x = position.x as f64 + 0.5;
-                    let translated_y = position.y as f64 + 0.5;
-                    let translated_point = Point::new(translated_x, translated_y);
+                    let translated_point = self.editor
+                        .translate_to_image_point(
+                            Point::new(position.x as f64 + 0.5, position.y as f64 + 0.5)
+                        );
                     if position.x < self.editor.canvas().width()
                         && position.y < self.editor.canvas().height()
                     {
