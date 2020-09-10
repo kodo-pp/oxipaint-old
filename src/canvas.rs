@@ -72,6 +72,7 @@ impl Canvas {
         slice[3] = color.a;
     }
 
+    #[allow(dead_code)]
     pub fn set_at(&mut self, x: u32, y: u32, color: Color) {
         self.try_set_at(x, y, color).unwrap();
     }
