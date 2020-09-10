@@ -81,7 +81,7 @@ impl Tool for Pencil {
                         // Previous and current points within the window
                         let contains_last_point = editor.canvas().contains_point(last_point);
                         if contains_last_point {
-                            editor.canvas_mut().set_at(
+                            editor.canvas_mut().try_set_at(
                                 last_point.x as u32,
                                 last_point.y as u32,
                                 context.primary_color,

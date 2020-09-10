@@ -133,7 +133,7 @@ impl Editor {
         screen_width: u32,
         screen_height: u32,
     ) -> Point {
-        let (offset_x, offset_y) = self.get_left_top_offset(screen_width, screen_height);
-        Point::new(point.x - offset_x, point.y - offset_y).map(|x| self.scale.unapply(x))
+        let (offset_x, offset_y) = self.get_left_top_offset_i32(screen_width, screen_height);
+        Point::new(point.x - offset_x as f64, point.y - offset_y as f64).map(|x| self.scale.unapply(x))
     }
 }
