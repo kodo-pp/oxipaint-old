@@ -84,25 +84,19 @@ impl Canvas {
         texture_creator: &mut TextureCreator<WindowContext>,
         scale: Scale,
         visible_rect: Rect,
+        left_top_offset: Point<i32>,
     ) {
         let texture = self.sdl_texture(texture_creator, visible_rect);
         let query = texture.query();
-        let texture_real_rect = Rect::new(0, 0, query.width, query.height);
-        if let Some(texture_effective_rect) = texture_real_rect & visible_rect {
-            let target_rect = Rect::new(
-                0,
-                0,
-                scale.apply(texture_effective_rect.width()),
-                scale.apply(texture_effective_rect.height()),
-            );
-            sdl_canvas
-                .copy(
-                    &texture,
-                    Some(visible_rect),
-                    Some(target_rect),
-                )
-                .expect("Failed to draw texture");
-        }
+        let mut texture_scaled_rect = Rect::new(0, 0, scale.apply(query.width), scale.apply(query.height));
+        texture_scaled_rect.reposition((left_top_offset.x, left_top_offset.y));
+        sdl_canvas
+            .copy(
+                &texture,
+                None,
+                Some(texture_scaled_rect),
+            )
+            .expect("Failed to draw texture");
     }
 
     pub fn create_shadow_data(&self) -> Vec<u8> {
@@ -186,14 +180,16 @@ impl Canvas {
             .expect("Failed to create a texture for the canvas");
 
         let visible_rect = visible_rect.intersection(Rect::new(0, 0, self.width, self.height)).unwrap();
+        println!("{:?}", visible_rect);
         let start_offset = self.calc_offset(visible_rect.left() as u32, visible_rect.top() as u32).unwrap();
-        let slice = &self.data[start_offset..];
+        let end_offset = self.calc_offset(visible_rect.right() as u32 - 1, visible_rect.bottom() as u32 - 1).unwrap();
+        let slice = &self.data[start_offset..=end_offset];
         let pitch_pixels = self.width as usize;
         let pitch = pitch_pixels * Self::BPP;
 
         // Workaround due to numerous bugs in the input validation in "safe" sdl2 API,
         // which lead to undefined behavior in case of wrong input.
-        assert!(slice.len() >= pitch * visible_rect.height() as usize);
+        //assert!(slice.len() >= pitch * visible_rect.height() as usize);
 
         texture
             .update(visible_rect, slice, pitch)

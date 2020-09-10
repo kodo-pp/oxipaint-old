@@ -12,6 +12,7 @@ pub struct Editor {
     history: History,
     in_transaction: bool,
     scale: Scale,
+    center: Point,
 }
 
 impl Editor {
@@ -21,6 +22,7 @@ impl Editor {
         let history = History::new();
         let in_transaction = false;
         let scale = Scale::Times(1);
+        let center = Point::new(width as f64, height as f64).map(|x| x / 2.0);
 
         Editor {
             canvas,
@@ -28,6 +30,7 @@ impl Editor {
             history,
             in_transaction,
             scale,
+            center,
         }
     }
 
@@ -99,9 +102,17 @@ impl Editor {
         texture_creator: &mut TextureCreator<WindowContext>,
     ) {
         let (w, h) = sdl_canvas.window().drawable_size();
-        let visible_rect = Rect::new(0, 0, self.scale.unapply(w), self.scale.unapply(h));
+        let (x, y) = self.get_left_top_offset(w, h);
+        let visible_rect = Rect::new((-x).max(0), (-y).max(0), self.scale.unapply(w), self.scale.unapply(h));
         self.canvas
-            .draw(sdl_canvas, texture_creator, self.scale, visible_rect);
+            .draw(sdl_canvas, texture_creator, self.scale, visible_rect, Point::new(x, y));
+    }
+
+    pub fn get_left_top_offset(&self, screen_width: u32, screen_height: u32) -> (i32, i32) {
+        let x = (screen_width as f64 / 2.0 - self.center.x).round() as i32;
+        let y = (screen_height as f64 / 2.0 - self.center.y).round() as i32;
+        println!("LTO: ({}, {})", x, y);
+        (x, y)
     }
 
     pub fn translate_to_image_point(&self, point: Point) -> Point {
