@@ -33,10 +33,20 @@ impl Tool for Pencil {
                 let point = context.cursor_position;
                 self.state = PencilState::Active { last_point: point };
                 editor.begin();
+                match point {
+                    TranslatedPoint::WithinCanvas(point) => {
+                        editor.canvas_mut().set_at(
+                            point.x as u32,
+                            point.y as u32,
+                            context.primary_color,
+                        );
+                        Redraw::Do
+                    }
+                    _ => Redraw::Dont
+                }
             }
-            _ => (),
+            _ => Redraw::Dont,
         }
-        Redraw::Dont
     }
 
     fn on_mouse_button_release(
