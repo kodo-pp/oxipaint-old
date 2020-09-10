@@ -15,7 +15,7 @@ use crate::geometry::Point;
 use crate::tool::Tool;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
-use sdl2::mouse::{MouseButton};
+use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::render::TextureCreator;
 use sdl2::video::{Window, WindowContext};
@@ -239,12 +239,11 @@ mod adhoc_oxipaint {
             match position {
                 Some(position) => {
                     let (screen_width, screen_height) = self.get_screen_size();
-                    let translated_point = self.editor
-                        .translate_to_image_point(
-                            Point::new(position.x as f64 + 0.5, position.y as f64 + 0.5),
-                            screen_width,
-                            screen_height,
-                        );
+                    let translated_point = self.editor.translate_to_image_point(
+                        Point::new(position.x as f64 + 0.5, position.y as f64 + 0.5),
+                        screen_width,
+                        screen_height,
+                    );
                     if position.x < self.editor.canvas().width()
                         && position.y < self.editor.canvas().height()
                     {

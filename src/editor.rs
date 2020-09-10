@@ -1,5 +1,5 @@
 use crate::canvas::Canvas;
-use crate::geometry::{Scale, Point};
+use crate::geometry::{Point, Scale};
 use crate::history::{DiffDirection, History};
 use crate::SdlCanvas;
 use sdl2::rect::Rect;
@@ -106,9 +106,19 @@ impl Editor {
             .translate_to_image_point(Point::new(0.0, 0.0), w, h)
             .map(|x| x.round() as i32)
             .into();
-        let visible_rect = Rect::new(x - 1, y - 1, self.scale.unapply(w) + 2, self.scale.unapply(h) + 2);
-        self.canvas
-            .draw(sdl_canvas, texture_creator, self.scale, visible_rect, self.get_left_top_offset_i32(w, h).into());
+        let visible_rect = Rect::new(
+            x - 1,
+            y - 1,
+            self.scale.unapply(w) + 2,
+            self.scale.unapply(h) + 2,
+        );
+        self.canvas.draw(
+            sdl_canvas,
+            texture_creator,
+            self.scale,
+            visible_rect,
+            self.get_left_top_offset_i32(w, h).into(),
+        );
     }
 
     pub fn get_left_top_offset_i32(&self, screen_width: u32, screen_height: u32) -> (i32, i32) {
@@ -122,11 +132,13 @@ impl Editor {
         (x, y)
     }
 
-    pub fn translate_to_image_point(&self, point: Point, screen_width: u32, screen_height: u32) -> Point {
+    pub fn translate_to_image_point(
+        &self,
+        point: Point,
+        screen_width: u32,
+        screen_height: u32,
+    ) -> Point {
         let (offset_x, offset_y) = self.get_left_top_offset(screen_width, screen_height);
-        Point::new(
-            point.x - offset_x,
-            point.y - offset_y,
-        ).map(|x| self.scale.unapply(x))
+        Point::new(point.x - offset_x, point.y - offset_y).map(|x| self.scale.unapply(x))
     }
 }
