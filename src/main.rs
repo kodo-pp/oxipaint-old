@@ -17,11 +17,13 @@ use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
-use sdl2::render::TextureCreator;
-use sdl2::video::{Window, WindowContext};
+
+use sdl2::video::Window;
 use sdl2::EventPump;
+use std::cell::RefCell;
 use std::error::Error;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SdlError(String);
@@ -43,9 +45,8 @@ impl Error for SdlError {}
 pub type SdlCanvas = sdl2::render::Canvas<Window>;
 
 pub struct SdlApp {
-    sdl_canvas: SdlCanvas,
+    sdl_canvas: Rc<RefCell<SdlCanvas>>,
     event_pump: EventPump,
-    texture_creator: TextureCreator<WindowContext>,
 }
 
 impl SdlApp {
@@ -59,20 +60,19 @@ impl SdlApp {
             .build()
             .map_err(|e| e.to_string())?;
 
-        let sdl_canvas = window
-            .into_canvas()
-            .accelerated()
-            .build()
-            .map_err(|e| e.to_string())?;
-
-        let texture_creator = sdl_canvas.texture_creator();
+        let sdl_canvas = Rc::new(RefCell::new(
+            window
+                .into_canvas()
+                .accelerated()
+                .build()
+                .map_err(|e| e.to_string())?,
+        ));
 
         let event_pump = sdl_context.event_pump()?;
 
         Ok(SdlApp {
             sdl_canvas,
             event_pump,
-            texture_creator,
         })
     }
 }
@@ -111,7 +111,7 @@ mod adhoc_oxipaint {
             let tools = tools::list();
             assert!(!tools.is_empty());
             let selected_tool = Some(0);
-            let editor = Editor::new(800, 600);
+            let editor = Editor::new(800, 600, Rc::clone(&sdl_app.sdl_canvas));
             let state = OxiPaintState::default();
 
             Ok(OxiPaint {
@@ -257,7 +257,7 @@ mod adhoc_oxipaint {
         }
 
         fn get_screen_size(&self) -> (u32, u32) {
-            self.sdl_app.sdl_canvas.window().drawable_size()
+            self.sdl_app.sdl_canvas.borrow().window().drawable_size()
         }
 
         fn enqueue_termination(&mut self) {
@@ -283,13 +283,13 @@ mod adhoc_oxipaint {
         pub fn run(mut self) {
             while !self.should_terminate() {
                 if self.should_redraw() {
-                    self.sdl_app.sdl_canvas.set_draw_color(Color::BLACK);
-                    self.sdl_app.sdl_canvas.clear();
-                    self.editor.draw(
-                        &mut self.sdl_app.sdl_canvas,
-                        &mut self.sdl_app.texture_creator,
-                    );
-                    self.sdl_app.sdl_canvas.present();
+                    self.sdl_app
+                        .sdl_canvas
+                        .borrow_mut()
+                        .set_draw_color(Color::BLACK);
+                    self.sdl_app.sdl_canvas.borrow_mut().clear();
+                    self.editor.draw();
+                    self.sdl_app.sdl_canvas.borrow_mut().present();
                     self.redrawn();
                 }
 

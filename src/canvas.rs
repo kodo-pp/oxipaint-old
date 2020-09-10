@@ -5,23 +5,37 @@ use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
-
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Canvas {
     data: Vec<u8>,
     width: u32,
     height: u32,
+    sdl_canvas: Rc<RefCell<SdlCanvas>>,
+    texture: Texture<'static>,
 }
 
 impl Canvas {
-    pub fn new(width: u32, height: u32) -> Canvas {
+    pub fn new(width: u32, height: u32, sdl_canvas: Rc<RefCell<SdlCanvas>>) -> Canvas {
         let data_size = width as usize * height as usize * Self::BPP;
         let mut data = Vec::new();
+
+        // FIXME: this is a very ugly and inelegant solution to deal with a "struct referencing
+        // itself" problem. This piece of code should preferrably be rewritten to allow proper
+        // resource management. This is not urgent or critical, however, because this program is
+        // not expected to create more than one instance of `Canvas`, so a single minor memory
+        // leak here may be tolerable.
+        let texture_creator = Box::leak(Box::new(sdl_canvas.borrow().texture_creator()));
         data.resize(data_size, 255);
+        let texture = Self::create_sdl_texture(texture_creator, width, height);
+
         Canvas {
             width,
             height,
             data,
+            sdl_canvas,
+            texture,
         }
     }
 
@@ -78,21 +92,20 @@ impl Canvas {
         self.height
     }
 
-    pub fn draw(
-        &self,
-        sdl_canvas: &mut SdlCanvas,
-        texture_creator: &mut TextureCreator<WindowContext>,
-        scale: Scale,
-        visible_rect: Rect,
-        left_top_offset: Point<i32>,
-    ) {
-        let texture = self.sdl_texture(texture_creator, visible_rect);
+    pub fn sdl_canvas(&self) -> &RefCell<SdlCanvas> {
+        self.sdl_canvas.as_ref()
+    }
+
+    pub fn draw(&mut self, scale: Scale, visible_rect: Rect, left_top_offset: Point<i32>) {
+        self.update_sdl_texture(visible_rect);
+        let texture = &self.texture;
         let query = texture.query();
         let mut texture_scaled_rect =
             Rect::new(0, 0, scale.apply(query.width), scale.apply(query.height));
         texture_scaled_rect.reposition((left_top_offset.x, left_top_offset.y));
-        sdl_canvas
-            .copy(&texture, None, Some(texture_scaled_rect))
+        self.sdl_canvas
+            .borrow_mut()
+            .copy(texture, None, Some(texture_scaled_rect))
             .expect("Failed to draw texture");
     }
 
@@ -148,18 +161,30 @@ impl Canvas {
             && point.y < self.height() as f64
     }
 
-    fn sdl_texture<'a>(
-        &self,
-        texture_creator: &'a mut TextureCreator<WindowContext>,
-        visible_rect: Rect,
-    ) -> Texture<'a> {
-        // TODO: implement a more efficient way of updating the texture (w/o overwriting it
-        // completely every time)
-
+    fn create_sdl_texture(
+        texture_creator: &TextureCreator<WindowContext>,
+        width: u32,
+        height: u32,
+    ) -> Texture {
         let mut texture = texture_creator
-            .create_texture_streaming(PixelFormatEnum::ARGB8888, self.width, self.height)
+            .create_texture_streaming(PixelFormatEnum::ARGB8888, width, height)
             .expect("Failed to create a texture for the canvas");
 
+        texture
+            .with_lock(None, |data, _| {
+                for chunk in data.chunks_mut(4) {
+                    chunk[0] = 100;
+                    chunk[1] = 100;
+                    chunk[2] = 100;
+                    chunk[3] = 255;
+                }
+            })
+            .expect("Failed to initialize the texture");
+
+        texture
+    }
+
+    fn update_sdl_texture(&mut self, visible_rect: Rect) {
         let visible_rect = visible_rect
             .intersection(Rect::new(0, 0, self.width, self.height))
             .unwrap();
@@ -180,22 +205,9 @@ impl Canvas {
         // which lead to undefined behavior in case of wrong input.
         //assert!(slice.len() >= pitch * visible_rect.height() as usize);
 
-        texture
-            .with_lock(None, |data, _| {
-                for chunk in data.chunks_mut(4) {
-                    chunk[0] = 100;
-                    chunk[1] = 100;
-                    chunk[2] = 100;
-                    chunk[3] = 255;
-                }
-            })
-            .unwrap();
-
-        texture
+        self.texture
             .update(visible_rect, slice, pitch)
             .expect("Failed to fill the texture with the image data");
-
-        texture
     }
 
     fn calc_offset(&self, x: u32, y: u32) -> Option<usize> {

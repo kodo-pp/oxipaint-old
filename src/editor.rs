@@ -3,8 +3,9 @@ use crate::geometry::{Point, Scale};
 use crate::history::{DiffDirection, History};
 use crate::SdlCanvas;
 use sdl2::rect::Rect;
-use sdl2::render::TextureCreator;
-use sdl2::video::WindowContext;
+
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Editor {
     canvas: Canvas,
@@ -16,8 +17,8 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(width: u32, height: u32) -> Editor {
-        let canvas = Canvas::new(width, height);
+    pub fn new(width: u32, height: u32, sdl_canvas: Rc<RefCell<SdlCanvas>>) -> Editor {
+        let canvas = Canvas::new(width, height, sdl_canvas);
         let shadow_data = canvas.create_shadow_data();
         let history = History::new();
         let in_transaction = false;
@@ -96,12 +97,8 @@ impl Editor {
         self.in_transaction = false;
     }
 
-    pub fn draw(
-        &self,
-        sdl_canvas: &mut SdlCanvas,
-        texture_creator: &mut TextureCreator<WindowContext>,
-    ) {
-        let (w, h) = sdl_canvas.window().drawable_size();
+    pub fn draw(&mut self) {
+        let (w, h) = self.canvas.sdl_canvas().borrow().window().drawable_size();
         let (x, y) = self
             .translate_to_image_point(Point::new(0.0, 0.0), w, h)
             .map(|x| x.round() as i32)
@@ -113,8 +110,6 @@ impl Editor {
             self.scale.unapply(h) + 2,
         );
         self.canvas.draw(
-            sdl_canvas,
-            texture_creator,
             self.scale,
             visible_rect,
             self.get_left_top_offset_i32(w, h).into(),
