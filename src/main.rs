@@ -238,9 +238,12 @@ mod adhoc_oxipaint {
         fn translate_cursor_position(&self, position: Option<Point<u32>>) -> TranslatedPoint {
             match position {
                 Some(position) => {
+                    let (screen_width, screen_height) = self.get_screen_size();
                     let translated_point = self.editor
                         .translate_to_image_point(
-                            Point::new(position.x as f64 + 0.5, position.y as f64 + 0.5)
+                            Point::new(position.x as f64 + 0.5, position.y as f64 + 0.5),
+                            screen_width,
+                            screen_height,
                         );
                     if position.x < self.editor.canvas().width()
                         && position.y < self.editor.canvas().height()
@@ -252,6 +255,10 @@ mod adhoc_oxipaint {
                 }
                 None => TranslatedPoint::OutsideWindow,
             }
+        }
+
+        fn get_screen_size(&self) -> (u32, u32) {
+            self.sdl_app.sdl_canvas.window().drawable_size()
         }
 
         fn enqueue_termination(&mut self) {

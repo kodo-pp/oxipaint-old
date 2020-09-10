@@ -102,20 +102,31 @@ impl Editor {
         texture_creator: &mut TextureCreator<WindowContext>,
     ) {
         let (w, h) = sdl_canvas.window().drawable_size();
-        let (x, y) = self.get_left_top_offset(w, h);
-        let visible_rect = Rect::new((-x).max(0), (-y).max(0), self.scale.unapply(w), self.scale.unapply(h));
+        let (x, y) = self
+            .translate_to_image_point(Point::new(0.0, 0.0), w, h)
+            .map(|x| x.round() as i32)
+            .into();
+        let visible_rect = Rect::new(x.max(0), y.max(0), self.scale.unapply(w), self.scale.unapply(h));
         self.canvas
-            .draw(sdl_canvas, texture_creator, self.scale, visible_rect, Point::new(x, y));
+            .draw(sdl_canvas, texture_creator, self.scale, visible_rect, self.get_left_top_offset_i32(w, h).into());
     }
 
-    pub fn get_left_top_offset(&self, screen_width: u32, screen_height: u32) -> (i32, i32) {
-        let x = (screen_width as f64 / 2.0 - self.center.x).round() as i32;
-        let y = (screen_height as f64 / 2.0 - self.center.y).round() as i32;
-        println!("LTO: ({}, {})", x, y);
+    pub fn get_left_top_offset_i32(&self, screen_width: u32, screen_height: u32) -> (i32, i32) {
+        let (x, y) = self.get_left_top_offset(screen_width, screen_height);
+        (x.round() as i32, y.round() as i32)
+    }
+
+    pub fn get_left_top_offset(&self, screen_width: u32, screen_height: u32) -> (f64, f64) {
+        let x = screen_width as f64 / 2.0 - self.scale.apply(self.center.x);
+        let y = screen_height as f64 / 2.0 - self.scale.apply(self.center.y);
         (x, y)
     }
 
-    pub fn translate_to_image_point(&self, point: Point) -> Point {
-        point.map(|x| self.scale.unapply(x))
+    pub fn translate_to_image_point(&self, point: Point, screen_width: u32, screen_height: u32) -> Point {
+        let (offset_x, offset_y) = self.get_left_top_offset(screen_width, screen_height);
+        Point::new(
+            point.x - offset_x,
+            point.y - offset_y,
+        ).map(|x| self.scale.unapply(x))
     }
 }

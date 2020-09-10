@@ -180,7 +180,6 @@ impl Canvas {
             .expect("Failed to create a texture for the canvas");
 
         let visible_rect = visible_rect.intersection(Rect::new(0, 0, self.width, self.height)).unwrap();
-        println!("{:?}", visible_rect);
         let start_offset = self.calc_offset(visible_rect.left() as u32, visible_rect.top() as u32).unwrap();
         let end_offset = self.calc_offset(visible_rect.right() as u32 - 1, visible_rect.bottom() as u32 - 1).unwrap();
         let slice = &self.data[start_offset..=end_offset];
@@ -190,6 +189,10 @@ impl Canvas {
         // Workaround due to numerous bugs in the input validation in "safe" sdl2 API,
         // which lead to undefined behavior in case of wrong input.
         //assert!(slice.len() >= pitch * visible_rect.height() as usize);
+
+        texture
+            .with_lock(None, |data, _| { for chunk in data.chunks_mut(4) { chunk[0] = 100; chunk[1] = 100; chunk[2] = 100; chunk[3] = 255; }})
+            .unwrap();
 
         texture
             .update(visible_rect, slice, pitch)
