@@ -106,7 +106,7 @@ impl Editor {
             .translate_to_image_point(Point::new(0.0, 0.0), w, h)
             .map(|x| x.round() as i32)
             .into();
-        let visible_rect = Rect::new(x.max(0), y.max(0), self.scale.unapply(w), self.scale.unapply(h));
+        let visible_rect = Rect::new(x - 1, y - 1, self.scale.unapply(w) + 2, self.scale.unapply(h) + 2);
         self.canvas
             .draw(sdl_canvas, texture_creator, self.scale, visible_rect, self.get_left_top_offset_i32(w, h).into());
     }
