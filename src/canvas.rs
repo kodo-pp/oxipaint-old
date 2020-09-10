@@ -5,7 +5,7 @@ use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
-use std::convert::TryInto;
+
 
 pub struct Canvas {
     data: Vec<u8>,
@@ -146,22 +146,6 @@ impl Canvas {
             && point.y >= 0.0
             && point.x < self.width() as f64
             && point.y < self.height() as f64
-    }
-
-    fn try_into_x(&self, value: u32) -> Option<u32> {
-        Self::try_into_coord(value, self.width)
-    }
-
-    fn try_into_y(&self, value: u32) -> Option<u32> {
-        Self::try_into_coord(value, self.height)
-    }
-
-    fn try_into_coord(value: u32, limit: u32) -> Option<u32> {
-        if value < limit {
-            Some(value)
-        } else {
-            None
-        }
     }
 
     fn sdl_texture<'a>(
