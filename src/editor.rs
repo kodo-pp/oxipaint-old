@@ -35,6 +35,19 @@ impl Editor {
         }
     }
 
+    pub fn scale(&self) -> Scale {
+        self.scale
+    }
+
+    pub fn scroll(&mut self, delta_x: f64, delta_y: f64) {
+        let width = self.canvas.width() as f64;
+        let height = self.canvas.width() as f64;
+        self.center = self
+            .center
+            .zipmap((delta_x, delta_y), |t, dt| t + dt)
+            .zipmap((width, height), |t, lim| t.max(0.0).min(lim));
+    }
+
     fn recalc_scale_up(orig_scale: Scale) -> Option<Scale> {
         match orig_scale {
             Scale::Times(n) => Some(Scale::Times(n + 1)),

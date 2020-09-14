@@ -13,6 +13,7 @@ use crate::draw_context::DrawContext;
 use crate::editor::Editor;
 use crate::geometry::Point;
 use crate::tool::Tool;
+use sdl2::Sdl;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
@@ -44,8 +45,9 @@ impl Error for SdlError {}
 pub type SdlCanvas = sdl2::render::Canvas<Window>;
 
 pub struct SdlApp {
-    sdl_canvas: Rc<RefCell<SdlCanvas>>,
-    event_pump: EventPump,
+    pub sdl_context: Sdl,
+    pub sdl_canvas: Rc<RefCell<SdlCanvas>>,
+    pub event_pump: EventPump,
 }
 
 impl SdlApp {
@@ -70,6 +72,7 @@ impl SdlApp {
         let event_pump = sdl_context.event_pump()?;
 
         Ok(SdlApp {
+            sdl_context,
             sdl_canvas,
             event_pump,
         })
@@ -85,6 +88,7 @@ impl SdlApp {
 struct OxiPaintState {
     termination: bool,
     redraw: bool,
+    is_scrolling: bool,
 }
 
 impl Default for OxiPaintState {
@@ -92,6 +96,7 @@ impl Default for OxiPaintState {
         OxiPaintState {
             termination: false,
             redraw: true,
+            is_scrolling: false,
         }
     }
 }
@@ -133,9 +138,9 @@ mod adhoc_oxipaint {
                 Event::Quit { .. } => {
                     self.enqueue_termination();
                 }
-                Event::MouseMotion { x, y, .. } => {
+                Event::MouseMotion { x, y, xrel, yrel, .. } => {
                     self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
-                    self.handle_cursor_movement();
+                    self.handle_cursor_movement(Some((xrel as f64, yrel as f64)));
                 }
                 Event::MouseButtonDown {
                     x, y, mouse_btn, ..
@@ -176,7 +181,7 @@ mod adhoc_oxipaint {
                 Event::Window { win_event, .. } => match win_event {
                     WindowEvent::Leave => {
                         self.update_cursor_position(None);
-                        self.handle_cursor_movement();
+                        self.handle_cursor_movement(None);
                     }
                     _ => (),
                 },
@@ -205,6 +210,12 @@ mod adhoc_oxipaint {
                     } else {
                         println!("Failed to scale down");
                     }
+                }
+                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                    self.start_scrolling();
+                }
+                Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
+                    self.stop_scrolling();
                 }
                 _ => (),
             }
@@ -236,13 +247,46 @@ mod adhoc_oxipaint {
             }
         }
 
-        fn handle_cursor_movement(&mut self) {
-            if let Some(index) = self.selected_tool {
+        fn handle_cursor_movement(&mut self, absolute_delta: Option<(f64, f64)>) {
+            if self.is_scrolling() {
+                if let Some((adx, ady)) = absolute_delta {
+                    let k = self.scroll_acceleration();
+                    let rdx = self.editor.scale().unapply(adx) * k;
+                    let rdy = self.editor.scale().unapply(ady) * k;
+                    self.editor.scroll(rdx, rdy);
+                    self.enqueue_redraw();
+                }
+            } else if let Some(index) = self.selected_tool {
                 let tool = self.tools[index].as_mut();
                 if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.editor) {
                     self.enqueue_redraw();
                 }
             }
+        }
+
+        fn scroll_acceleration(&self) -> f64 {
+            // TODO: maybe put this value into a config file
+            2.0
+        }
+
+        fn start_scrolling(&mut self) {
+            let mouse_util = self.sdl_app.sdl_context.mouse();
+            mouse_util.show_cursor(false);
+            mouse_util.set_relative_mouse_mode(true);
+            self.state.is_scrolling = true;
+            self.enqueue_redraw();
+        }
+
+        fn stop_scrolling(&mut self) {
+            let mouse_util = self.sdl_app.sdl_context.mouse();
+            mouse_util.show_cursor(true);
+            mouse_util.set_relative_mouse_mode(false);
+            self.state.is_scrolling = false;
+            self.enqueue_redraw();
+        }
+
+        fn is_scrolling(&self) -> bool {
+            self.state.is_scrolling
         }
 
         fn update_cursor_position(&mut self, position: Option<Point<u32>>) {
