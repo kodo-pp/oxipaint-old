@@ -42,7 +42,7 @@ impl Tool for Pencil {
                         );
                         Redraw::Do
                     }
-                    _ => Redraw::Dont
+                    _ => Redraw::Dont,
                 }
             }
             _ => Redraw::Dont,

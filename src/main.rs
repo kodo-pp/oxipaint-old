@@ -243,8 +243,8 @@ mod adhoc_oxipaint {
                         screen_width,
                         screen_height,
                     );
-                    if (0.0 .. self.editor.canvas().width() as f64).contains(&translated_point.x)
-                        && (0.0 .. self.editor.canvas().height() as f64).contains(&translated_point.y)
+                    if (0.0..self.editor.canvas().width() as f64).contains(&translated_point.x)
+                        && (0.0..self.editor.canvas().height() as f64).contains(&translated_point.y)
                     {
                         TranslatedPoint::WithinCanvas(translated_point)
                     } else {
