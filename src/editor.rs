@@ -35,28 +35,57 @@ impl Editor {
         }
     }
 
-    pub fn scale_up(&mut self) -> Option<Scale> {
-        let new_scale = match self.scale {
+    fn recalc_scale_up(orig_scale: Scale) -> Option<Scale> {
+        match orig_scale {
             Scale::Times(n) => Some(Scale::Times(n + 1)),
-        };
+        }
+    }
 
+    fn recalc_scale_down(orig_scale: Scale) -> Option<Scale> {
+        match orig_scale {
+            Scale::Times(0) => unreachable!(),
+            Scale::Times(1) => None,
+            Scale::Times(n) => Some(Scale::Times(n - 1)),
+        }
+    }
+
+    pub fn scale_up(&mut self, stationary_point: Point) -> Option<Scale> {
+        let new_scale = Self::recalc_scale_up(self.scale);
         if let Some(s) = new_scale {
-            self.scale = s;
+            self.rescale(s, stationary_point);
         }
         new_scale
     }
 
-    pub fn scale_down(&mut self) -> Option<Scale> {
-        let new_scale = match self.scale {
-            Scale::Times(0) => unreachable!(),
-            Scale::Times(1) => None,
-            Scale::Times(n) => Some(Scale::Times(n - 1)),
-        };
-
+    pub fn scale_down(&mut self, stationary_point: Point) -> Option<Scale> {
+        let new_scale = Self::recalc_scale_down(self.scale);
         if let Some(s) = new_scale {
-            self.scale = s;
+            self.rescale(s, stationary_point);
         }
         new_scale
+    }
+
+    fn rescale(&mut self, new_scale: Scale, stationary_point: Point) {
+        let orig_scale = self.scale;
+        let orig_center = self.center;
+
+        let orig_stationary_point_offset_x = stationary_point.x as f64 - orig_center.x;
+        let orig_stationary_point_offset_y = stationary_point.y as f64 - orig_center.y;
+        let new_stationary_point_offset_x =
+            orig_scale.apply(new_scale.unapply(orig_stationary_point_offset_x));
+        let new_stationary_point_offset_y =
+            orig_scale.apply(new_scale.unapply(orig_stationary_point_offset_y));
+
+        let new_center = Point::new(
+            stationary_point.x - new_stationary_point_offset_x,
+            stationary_point.y - new_stationary_point_offset_y,
+        )
+        .zipmap(
+            (self.canvas.width() as f64, self.canvas.height() as f64),
+            |coord, lim| coord.max(0.0).min(lim),
+        );
+        self.center = new_center;
+        self.scale = new_scale;
     }
 
     pub fn canvas(&self) -> &Canvas {

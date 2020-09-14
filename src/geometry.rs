@@ -14,6 +14,10 @@ impl<T> Point<T> {
     pub fn map<O>(self, func: impl Fn(T) -> O) -> Point<O> {
         Point::new(func(self.x), func(self.y))
     }
+
+    pub fn zipmap<A, O>(self, attached: (A, A), func: impl Fn(T, A) -> O) -> Point<O> {
+        Point::new(func(self.x, attached.0), func(self.y, attached.1))
+    }
 }
 
 impl<T> From<(T, T)> for Point<T> {

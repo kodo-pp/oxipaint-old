@@ -74,6 +74,11 @@ impl SdlApp {
             event_pump,
         })
     }
+
+    pub fn cursor_position(&self) -> Point<i32> {
+        let mouse_state = self.event_pump.mouse_state();
+        Point::new(mouse_state.x(), mouse_state.y())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -176,7 +181,12 @@ mod adhoc_oxipaint {
                     _ => (),
                 },
                 Event::MouseWheel { y, .. } if y > 0 => {
-                    if let Some(new_scale) = self.editor.scale_up() {
+                    let stationary_point = self
+                        .translate_cursor_position(Some(self.sdl_app.cursor_position()))
+                        .point()
+                        .unwrap();
+
+                    if let Some(new_scale) = self.editor.scale_up(stationary_point) {
                         println!("Scale increased to {}", new_scale);
                         self.enqueue_redraw();
                     } else {
@@ -184,7 +194,12 @@ mod adhoc_oxipaint {
                     }
                 }
                 Event::MouseWheel { y, .. } if y < 0 => {
-                    if let Some(new_scale) = self.editor.scale_down() {
+                    let stationary_point = self
+                        .translate_cursor_position(Some(self.sdl_app.cursor_position()))
+                        .point()
+                        .unwrap();
+
+                    if let Some(new_scale) = self.editor.scale_down(stationary_point) {
                         println!("Scale decreased to {}", new_scale);
                         self.enqueue_redraw();
                     } else {
@@ -234,12 +249,16 @@ mod adhoc_oxipaint {
             self.draw_context.cursor_position = self.translate_cursor_position(position);
         }
 
-        fn translate_cursor_position(&self, position: Option<Point<u32>>) -> TranslatedPoint {
+        fn translate_cursor_position(
+            &self,
+            position: Option<Point<impl Into<f64>>>,
+        ) -> TranslatedPoint {
             match position {
                 Some(position) => {
+                    let position: Point<f64> = position.map(|x| x.into());
                     let (screen_width, screen_height) = self.get_screen_size();
                     let translated_point = self.editor.translate_to_image_point(
-                        Point::new(position.x as f64 + 0.5, position.y as f64 + 0.5),
+                        Point::new(position.x + 0.5, position.y + 0.5),
                         screen_width,
                         screen_height,
                     );
@@ -306,6 +325,16 @@ pub enum TranslatedPoint {
     WithinCanvas(Point),
     OutsideCanvas(Point),
     OutsideWindow,
+}
+
+impl TranslatedPoint {
+    pub fn point(self) -> Option<Point> {
+        use TranslatedPoint::*;
+        match self {
+            WithinCanvas(point) | OutsideCanvas(point) => Some(point),
+            OutsideWindow => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
