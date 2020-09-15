@@ -101,268 +101,262 @@ impl Default for OxiPaintState {
     }
 }
 
-mod adhoc_oxipaint {
-    use super::*;
+pub struct OxiPaint {
+    sdl_app: SdlApp,
+    draw_context: DrawContext,
+    tools: Vec<Box<dyn Tool>>,
+    selected_tool: Option<usize>,
+    editor: Editor,
+    state: OxiPaintState,
+}
 
-    pub struct OxiPaint {
-        sdl_app: SdlApp,
-        draw_context: DrawContext,
-        tools: Vec<Box<dyn Tool>>,
-        selected_tool: Option<usize>,
-        editor: Editor,
-        state: OxiPaintState,
+impl OxiPaint {
+    pub fn new() -> Result<OxiPaint, SdlError> {
+        let sdl_app = SdlApp::new()?;
+        let draw_context = DrawContext::default();
+        let tools = tools::list();
+        assert!(!tools.is_empty());
+        let selected_tool = Some(0);
+        let editor = Editor::new(800, 600, Rc::clone(&sdl_app.sdl_canvas));
+        let state = OxiPaintState::default();
+
+        Ok(OxiPaint {
+            sdl_app,
+            draw_context,
+            tools,
+            selected_tool,
+            editor,
+            state,
+        })
     }
 
-    impl OxiPaint {
-        pub fn new() -> Result<OxiPaint, SdlError> {
-            let sdl_app = SdlApp::new()?;
-            let draw_context = DrawContext::default();
-            let tools = tools::list();
-            assert!(!tools.is_empty());
-            let selected_tool = Some(0);
-            let editor = Editor::new(800, 600, Rc::clone(&sdl_app.sdl_canvas));
-            let state = OxiPaintState::default();
-
-            Ok(OxiPaint {
-                sdl_app,
-                draw_context,
-                tools,
-                selected_tool,
-                editor,
-                state,
-            })
-        }
-
-        fn handle_event(&mut self, event: Event) {
-            match event {
-                Event::Quit { .. } => {
-                    self.enqueue_termination();
+    fn handle_event(&mut self, event: Event) {
+        match event {
+            Event::Quit { .. } => {
+                self.enqueue_termination();
+            }
+            Event::MouseMotion { x, y, xrel, yrel, .. } => {
+                self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
+                self.handle_cursor_movement(Some((xrel as f64, yrel as f64)));
+            }
+            Event::MouseButtonDown {
+                x, y, mouse_btn, ..
+            } => {
+                self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
+                self.handle_mouse_button_press(mouse_btn);
+            }
+            Event::MouseButtonUp {
+                x, y, mouse_btn, ..
+            } => {
+                self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
+                self.handle_mouse_button_release(mouse_btn);
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::Z),
+                keymod: Mod::LCTRLMOD,
+                ..
+            } => {
+                if self.editor.undo().is_some() {
+                    println!("Undo OK");
+                    self.enqueue_redraw();
+                } else {
+                    println!("Cannot undo at the beginning of the timeline");
                 }
-                Event::MouseMotion { x, y, xrel, yrel, .. } => {
-                    self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
-                    self.handle_cursor_movement(Some((xrel as f64, yrel as f64)));
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::Y),
+                keymod: Mod::LCTRLMOD,
+                ..
+            } => {
+                if self.editor.redo().is_some() {
+                    println!("Redo OK");
+                    self.enqueue_redraw();
+                } else {
+                    println!("Cannot redo, since travelling into the future is not supported");
                 }
-                Event::MouseButtonDown {
-                    x, y, mouse_btn, ..
-                } => {
-                    self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
-                    self.handle_mouse_button_press(mouse_btn);
-                }
-                Event::MouseButtonUp {
-                    x, y, mouse_btn, ..
-                } => {
-                    self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
-                    self.handle_mouse_button_release(mouse_btn);
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Z),
-                    keymod: Mod::LCTRLMOD,
-                    ..
-                } => {
-                    if self.editor.undo().is_some() {
-                        println!("Undo OK");
-                        self.enqueue_redraw();
-                    } else {
-                        println!("Cannot undo at the beginning of the timeline");
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Y),
-                    keymod: Mod::LCTRLMOD,
-                    ..
-                } => {
-                    if self.editor.redo().is_some() {
-                        println!("Redo OK");
-                        self.enqueue_redraw();
-                    } else {
-                        println!("Cannot redo, since travelling into the future is not supported");
-                    }
-                }
-                Event::Window { win_event, .. } => match win_event {
-                    WindowEvent::Leave => {
-                        self.update_cursor_position(None);
-                        self.handle_cursor_movement(None);
-                    }
-                    _ => (),
-                },
-                Event::MouseWheel { y, .. } if y > 0 => {
-                    let stationary_point = self
-                        .translate_cursor_position(Some(self.sdl_app.cursor_position()))
-                        .point()
-                        .unwrap();
-
-                    if let Some(new_scale) = self.editor.scale_up(stationary_point) {
-                        println!("Scale increased to {}", new_scale);
-                        self.enqueue_redraw();
-                    } else {
-                        println!("Failed to scale up");
-                    }
-                }
-                Event::MouseWheel { y, .. } if y < 0 => {
-                    let stationary_point = self
-                        .translate_cursor_position(Some(self.sdl_app.cursor_position()))
-                        .point()
-                        .unwrap();
-
-                    if let Some(new_scale) = self.editor.scale_down(stationary_point) {
-                        println!("Scale decreased to {}", new_scale);
-                        self.enqueue_redraw();
-                    } else {
-                        println!("Failed to scale down");
-                    }
-                }
-                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-                    self.start_scrolling();
-                }
-                Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
-                    self.stop_scrolling();
+            }
+            Event::Window { win_event, .. } => match win_event {
+                WindowEvent::Leave => {
+                    self.update_cursor_position(None);
+                    self.handle_cursor_movement(None);
                 }
                 _ => (),
-            }
+            },
+            Event::MouseWheel { y, .. } if y > 0 => {
+                let stationary_point = self
+                    .translate_cursor_position(Some(self.sdl_app.cursor_position()))
+                    .point()
+                    .unwrap();
 
-            if should_redraw_on(&event) {
+                if let Some(new_scale) = self.editor.scale_up(stationary_point) {
+                    println!("Scale increased to {}", new_scale);
+                    self.enqueue_redraw();
+                } else {
+                    println!("Failed to scale up");
+                }
+            }
+            Event::MouseWheel { y, .. } if y < 0 => {
+                let stationary_point = self
+                    .translate_cursor_position(Some(self.sdl_app.cursor_position()))
+                    .point()
+                    .unwrap();
+
+                if let Some(new_scale) = self.editor.scale_down(stationary_point) {
+                    println!("Scale decreased to {}", new_scale);
+                    self.enqueue_redraw();
+                } else {
+                    println!("Failed to scale down");
+                }
+            }
+            Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                self.start_scrolling();
+            }
+            Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
+                self.stop_scrolling();
+            }
+            _ => (),
+        }
+
+        if should_redraw_on(&event) {
+            self.enqueue_redraw();
+        }
+    }
+
+    fn handle_mouse_button_press(&mut self, button: MouseButton) {
+        if let Some(index) = self.selected_tool {
+            let tool = self.tools[index].as_mut();
+            if let Redraw::Do =
+                tool.on_mouse_button_press(button, &self.draw_context, &mut self.editor)
+            {
                 self.enqueue_redraw();
             }
         }
+    }
 
-        fn handle_mouse_button_press(&mut self, button: MouseButton) {
-            if let Some(index) = self.selected_tool {
-                let tool = self.tools[index].as_mut();
-                if let Redraw::Do =
-                    tool.on_mouse_button_press(button, &self.draw_context, &mut self.editor)
-                {
-                    self.enqueue_redraw();
-                }
-            }
-        }
-
-        fn handle_mouse_button_release(&mut self, button: MouseButton) {
-            if let Some(index) = self.selected_tool {
-                let tool = self.tools[index].as_mut();
-                if let Redraw::Do =
-                    tool.on_mouse_button_release(button, &self.draw_context, &mut self.editor)
-                {
-                    self.enqueue_redraw();
-                }
-            }
-        }
-
-        fn handle_cursor_movement(&mut self, absolute_delta: Option<(f64, f64)>) {
-            if self.is_scrolling() {
-                if let Some((adx, ady)) = absolute_delta {
-                    let k = self.scroll_acceleration();
-                    let rdx = self.editor.scale().unapply(adx) * k;
-                    let rdy = self.editor.scale().unapply(ady) * k;
-                    self.editor.scroll(rdx, rdy);
-                    self.enqueue_redraw();
-                }
-            } else if let Some(index) = self.selected_tool {
-                let tool = self.tools[index].as_mut();
-                if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.editor) {
-                    self.enqueue_redraw();
-                }
-            }
-        }
-
-        fn scroll_acceleration(&self) -> f64 {
-            // TODO: maybe put this value into a config file
-            2.0
-        }
-
-        fn start_scrolling(&mut self) {
-            let mouse_util = self.sdl_app.sdl_context.mouse();
-            mouse_util.show_cursor(false);
-            mouse_util.set_relative_mouse_mode(true);
-            self.state.is_scrolling = true;
-            self.enqueue_redraw();
-        }
-
-        fn stop_scrolling(&mut self) {
-            let mouse_util = self.sdl_app.sdl_context.mouse();
-            mouse_util.show_cursor(true);
-            mouse_util.set_relative_mouse_mode(false);
-            self.state.is_scrolling = false;
-            self.enqueue_redraw();
-        }
-
-        fn is_scrolling(&self) -> bool {
-            self.state.is_scrolling
-        }
-
-        fn update_cursor_position(&mut self, position: Option<Point<u32>>) {
-            self.draw_context.cursor_position = self.translate_cursor_position(position);
-        }
-
-        fn translate_cursor_position(
-            &self,
-            position: Option<Point<impl Into<f64>>>,
-        ) -> TranslatedPoint {
-            match position {
-                Some(position) => {
-                    let position: Point<f64> = position.map(|x| x.into());
-                    let (screen_width, screen_height) = self.get_screen_size();
-                    let translated_point = self.editor.translate_to_image_point(
-                        Point::new(position.x + 0.5, position.y + 0.5),
-                        screen_width,
-                        screen_height,
-                    );
-                    if (0.0..self.editor.canvas().width() as f64).contains(&translated_point.x)
-                        && (0.0..self.editor.canvas().height() as f64).contains(&translated_point.y)
-                    {
-                        TranslatedPoint::WithinCanvas(translated_point)
-                    } else {
-                        TranslatedPoint::OutsideCanvas(translated_point)
-                    }
-                }
-                None => TranslatedPoint::OutsideWindow,
-            }
-        }
-
-        fn get_screen_size(&self) -> (u32, u32) {
-            self.sdl_app.sdl_canvas.borrow().window().drawable_size()
-        }
-
-        fn enqueue_termination(&mut self) {
-            self.state.termination = true;
-        }
-
-        fn enqueue_redraw(&mut self) {
-            self.state.redraw = true;
-        }
-
-        fn should_terminate(&self) -> bool {
-            self.state.termination
-        }
-
-        fn should_redraw(&self) -> bool {
-            self.state.redraw
-        }
-
-        fn redrawn(&mut self) {
-            self.state.redraw = false;
-        }
-
-        pub fn run(mut self) {
-            while !self.should_terminate() {
-                if self.should_redraw() {
-                    self.sdl_app
-                        .sdl_canvas
-                        .borrow_mut()
-                        .set_draw_color(Color::BLACK);
-                    self.sdl_app.sdl_canvas.borrow_mut().clear();
-                    self.editor.draw();
-                    self.sdl_app.sdl_canvas.borrow_mut().present();
-                    self.redrawn();
-                }
-
-                let event = self.sdl_app.event_pump.wait_event();
-                self.handle_event(event);
+    fn handle_mouse_button_release(&mut self, button: MouseButton) {
+        if let Some(index) = self.selected_tool {
+            let tool = self.tools[index].as_mut();
+            if let Redraw::Do =
+                tool.on_mouse_button_release(button, &self.draw_context, &mut self.editor)
+            {
+                self.enqueue_redraw();
             }
         }
     }
-}
 
-pub use adhoc_oxipaint::OxiPaint;
+    fn handle_cursor_movement(&mut self, absolute_delta: Option<(f64, f64)>) {
+        if self.is_scrolling() {
+            if let Some((adx, ady)) = absolute_delta {
+                let k = self.scroll_acceleration();
+                let rdx = self.editor.scale().unapply(adx) * k;
+                let rdy = self.editor.scale().unapply(ady) * k;
+                self.editor.scroll(rdx, rdy);
+                self.enqueue_redraw();
+            }
+        } else if let Some(index) = self.selected_tool {
+            let tool = self.tools[index].as_mut();
+            if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.editor) {
+                self.enqueue_redraw();
+            }
+        }
+    }
+
+    fn scroll_acceleration(&self) -> f64 {
+        // TODO: maybe put this value into a config file
+        2.0
+    }
+
+    fn start_scrolling(&mut self) {
+        let mouse_util = self.sdl_app.sdl_context.mouse();
+        mouse_util.show_cursor(false);
+        mouse_util.set_relative_mouse_mode(true);
+        self.state.is_scrolling = true;
+        self.enqueue_redraw();
+    }
+
+    fn stop_scrolling(&mut self) {
+        let mouse_util = self.sdl_app.sdl_context.mouse();
+        mouse_util.show_cursor(true);
+        mouse_util.set_relative_mouse_mode(false);
+        self.state.is_scrolling = false;
+        self.enqueue_redraw();
+    }
+
+    fn is_scrolling(&self) -> bool {
+        self.state.is_scrolling
+    }
+
+    fn update_cursor_position(&mut self, position: Option<Point<u32>>) {
+        self.draw_context.cursor_position = self.translate_cursor_position(position);
+    }
+
+    fn translate_cursor_position(
+        &self,
+        position: Option<Point<impl Into<f64>>>,
+    ) -> TranslatedPoint {
+        match position {
+            Some(position) => {
+                let position: Point<f64> = position.map(|x| x.into());
+                let (screen_width, screen_height) = self.get_screen_size();
+                let translated_point = self.editor.translate_to_image_point(
+                    Point::new(position.x + 0.5, position.y + 0.5),
+                    screen_width,
+                    screen_height,
+                );
+                if (0.0..self.editor.canvas().width() as f64).contains(&translated_point.x)
+                    && (0.0..self.editor.canvas().height() as f64).contains(&translated_point.y)
+                {
+                    TranslatedPoint::WithinCanvas(translated_point)
+                } else {
+                    TranslatedPoint::OutsideCanvas(translated_point)
+                }
+            }
+            None => TranslatedPoint::OutsideWindow,
+        }
+    }
+
+    fn get_screen_size(&self) -> (u32, u32) {
+        self.sdl_app.sdl_canvas.borrow().window().drawable_size()
+    }
+
+    fn enqueue_termination(&mut self) {
+        self.state.termination = true;
+    }
+
+    fn enqueue_redraw(&mut self) {
+        self.state.redraw = true;
+    }
+
+    fn should_terminate(&self) -> bool {
+        self.state.termination
+    }
+
+    fn should_redraw(&self) -> bool {
+        self.state.redraw
+    }
+
+    fn redrawn(&mut self) {
+        self.state.redraw = false;
+    }
+
+    pub fn run(mut self) {
+        while !self.should_terminate() {
+            if self.should_redraw() {
+                self.sdl_app
+                    .sdl_canvas
+                    .borrow_mut()
+                    .set_draw_color(Color::BLACK);
+                self.sdl_app.sdl_canvas.borrow_mut().clear();
+                self.editor.draw();
+                self.sdl_app.sdl_canvas.borrow_mut().present();
+                self.redrawn();
+            }
+
+            let event = self.sdl_app.event_pump.wait_event();
+            self.handle_event(event);
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TranslatedPoint {
