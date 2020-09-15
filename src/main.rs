@@ -10,16 +10,16 @@ mod tool;
 mod tools;
 
 use crate::draw_context::DrawContext;
-use crate::editor::Editor;
+use crate::editor::{Editor, TimeMachineError};
 use crate::geometry::Point;
 use crate::tool::Tool;
-use sdl2::Sdl;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::video::Window;
 use sdl2::EventPump;
+use sdl2::Sdl;
 use std::cell::RefCell;
 use std::error::Error;
 use std::fmt;
@@ -135,7 +135,9 @@ impl OxiPaint {
             Event::Quit { .. } => {
                 self.enqueue_termination();
             }
-            Event::MouseMotion { x, y, xrel, yrel, .. } => {
+            Event::MouseMotion {
+                x, y, xrel, yrel, ..
+            } => {
                 self.update_cursor_position(Some(Point::new(x as u32, y as u32)));
                 self.handle_cursor_movement(Some((xrel as f64, yrel as f64)));
             }
@@ -155,26 +157,34 @@ impl OxiPaint {
                 keycode: Some(Keycode::Z),
                 keymod: Mod::LCTRLMOD,
                 ..
-            } => {
-                if self.editor.undo().is_some() {
+            } => match self.editor.undo() {
+                Ok(_) => {
                     println!("Undo OK");
                     self.enqueue_redraw();
-                } else {
+                }
+                Err(TimeMachineError::AlreadyAtTimeEdge) => {
                     println!("Cannot undo at the beginning of the timeline");
                 }
-            }
+                Err(TimeMachineError::TransactionInProgress) => {
+                    println!("Cannot undo because a drawing action is in progress");
+                }
+            },
             Event::KeyDown {
                 keycode: Some(Keycode::Y),
                 keymod: Mod::LCTRLMOD,
                 ..
-            } => {
-                if self.editor.redo().is_some() {
+            } => match self.editor.redo() {
+                Ok(_) => {
                     println!("Redo OK");
                     self.enqueue_redraw();
-                } else {
-                    println!("Cannot redo, since travelling into the future is not supported");
                 }
-            }
+                Err(TimeMachineError::AlreadyAtTimeEdge) => {
+                    println!("Cannot redo at the beginning of the timeline");
+                }
+                Err(TimeMachineError::TransactionInProgress) => {
+                    println!("Cannot redo because a drawing action is in progress");
+                }
+            },
             Event::Window { win_event, .. } => match win_event {
                 WindowEvent::Leave => {
                     self.update_cursor_position(None);
@@ -208,10 +218,16 @@ impl OxiPaint {
                     println!("Failed to scale down");
                 }
             }
-            Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+            Event::KeyDown {
+                keycode: Some(Keycode::Space),
+                ..
+            } => {
                 self.start_scrolling();
             }
-            Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
+            Event::KeyUp {
+                keycode: Some(Keycode::Space),
+                ..
+            } => {
                 self.stop_scrolling();
             }
             _ => (),

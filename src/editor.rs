@@ -109,23 +109,28 @@ impl Editor {
         &mut self.canvas
     }
 
-    pub fn undo(&mut self) -> Option<()> {
+    pub fn undo(&mut self) -> Result<(), TimeMachineError> {
         if self.in_transaction {
-            panic!("Undo in the middle of transaction is not supported");
+            return Err(TimeMachineError::TransactionInProgress);
         }
-        let diff = self.history.undo()?;
+        let diff = self
+            .history
+            .undo()
+            .ok_or(TimeMachineError::AlreadyAtTimeEdge)?;
         self.canvas.apply_diff(diff, DiffDirection::Reverse);
-        Some(())
+        Ok(())
     }
 
-    pub fn redo(&mut self) -> Option<()> {
+    pub fn redo(&mut self) -> Result<(), TimeMachineError> {
         if self.in_transaction {
-            panic!("Redo in the middle of transaction is not supported");
+            return Err(TimeMachineError::TransactionInProgress);
         }
-        assert!(!self.in_transaction);
-        let diff = self.history.redo()?;
+        let diff = self
+            .history
+            .redo()
+            .ok_or(TimeMachineError::AlreadyAtTimeEdge)?;
         self.canvas.apply_diff(diff, DiffDirection::Normal);
-        Some(())
+        Ok(())
     }
 
     pub fn begin(&mut self) {
@@ -179,4 +184,10 @@ impl Editor {
         Point::new(point.x - offset_x as f64, point.y - offset_y as f64)
             .map(|x| self.scale.unapply(x))
     }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum TimeMachineError {
+    TransactionInProgress,
+    AlreadyAtTimeEdge,
 }
