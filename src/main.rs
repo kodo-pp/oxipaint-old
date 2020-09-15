@@ -101,6 +101,18 @@ impl Default for OxiPaintState {
     }
 }
 
+const fn any_keymod_of_two(a: Mod, b: Mod) -> Mod {
+    Mod::from_bits_truncate(a.bits() | b.bits())
+}
+
+macro_rules! any_keymod_of {
+    [$mod:expr] => ($mod);
+    [$head:expr, $($tail:expr),+] => (
+        any_keymod_of_two($head, any_keymod_of![$($tail),+])
+    );
+    [$($mods:expr),+,] => (any_keymod_of![$($mods),+]);
+}
+
 pub struct OxiPaint {
     sdl_app: SdlApp,
     draw_context: DrawContext,
@@ -111,6 +123,15 @@ pub struct OxiPaint {
 }
 
 impl OxiPaint {
+    const HOTKEYS_KEYMOD_MASK: Mod = any_keymod_of![
+        Mod::LCTRLMOD,
+        Mod::RCTRLMOD,
+        Mod::LALTMOD,
+        Mod::RALTMOD,
+        Mod::LSHIFTMOD,
+        Mod::RSHIFTMOD,
+    ];
+
     pub fn new() -> Result<OxiPaint, SdlError> {
         let sdl_app = SdlApp::new()?;
         let draw_context = DrawContext::default();
@@ -155,36 +176,40 @@ impl OxiPaint {
             }
             Event::KeyDown {
                 keycode: Some(Keycode::Z),
-                keymod: Mod::LCTRLMOD,
+                keymod,
                 ..
-            } => match self.editor.undo() {
-                Ok(_) => {
-                    println!("Undo OK");
-                    self.enqueue_redraw();
+            } if [Mod::LCTRLMOD, Mod::RCTRLMOD].contains(&(keymod & Self::HOTKEYS_KEYMOD_MASK)) => {
+                match self.editor.undo() {
+                    Ok(_) => {
+                        println!("Undo OK");
+                        self.enqueue_redraw();
+                    }
+                    Err(TimeMachineError::AlreadyAtTimeEdge) => {
+                        println!("Cannot undo at the beginning of the timeline");
+                    }
+                    Err(TimeMachineError::TransactionInProgress) => {
+                        println!("Cannot undo because a drawing action is in progress");
+                    }
                 }
-                Err(TimeMachineError::AlreadyAtTimeEdge) => {
-                    println!("Cannot undo at the beginning of the timeline");
-                }
-                Err(TimeMachineError::TransactionInProgress) => {
-                    println!("Cannot undo because a drawing action is in progress");
-                }
-            },
+            }
             Event::KeyDown {
                 keycode: Some(Keycode::Y),
-                keymod: Mod::LCTRLMOD,
+                keymod,
                 ..
-            } => match self.editor.redo() {
-                Ok(_) => {
-                    println!("Redo OK");
-                    self.enqueue_redraw();
+            } if [Mod::LCTRLMOD, Mod::RCTRLMOD].contains(&(keymod & Self::HOTKEYS_KEYMOD_MASK)) => {
+                match self.editor.redo() {
+                    Ok(_) => {
+                        println!("Redo OK");
+                        self.enqueue_redraw();
+                    }
+                    Err(TimeMachineError::AlreadyAtTimeEdge) => {
+                        println!("Cannot redo at the beginning of the timeline");
+                    }
+                    Err(TimeMachineError::TransactionInProgress) => {
+                        println!("Cannot redo because a drawing action is in progress");
+                    }
                 }
-                Err(TimeMachineError::AlreadyAtTimeEdge) => {
-                    println!("Cannot redo at the beginning of the timeline");
-                }
-                Err(TimeMachineError::TransactionInProgress) => {
-                    println!("Cannot redo because a drawing action is in progress");
-                }
-            },
+            }
             Event::Window { win_event, .. } => match win_event {
                 WindowEvent::Leave => {
                     self.update_cursor_position(None);
