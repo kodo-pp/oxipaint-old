@@ -223,20 +223,24 @@ impl OxiPaint {
     }
 
     fn handle_mouse_button_press(&mut self, button: MouseButton) {
-        let tool = self.tools[self.selected_tool].as_mut();
-        if let Redraw::Do =
-            tool.on_mouse_button_press(button, &self.draw_context, &mut self.editor)
-        {
-            self.enqueue_redraw();
+        if self.can_draw() {
+            let tool = self.tools[self.selected_tool].as_mut();
+            if let Redraw::Do =
+                tool.on_mouse_button_press(button, &self.draw_context, &mut self.editor)
+            {
+                self.enqueue_redraw();
+            }
         }
     }
 
     fn handle_mouse_button_release(&mut self, button: MouseButton) {
-        let tool = self.tools[self.selected_tool].as_mut();
-        if let Redraw::Do =
-            tool.on_mouse_button_release(button, &self.draw_context, &mut self.editor)
-        {
-            self.enqueue_redraw();
+        if self.can_draw() {
+            let tool = self.tools[self.selected_tool].as_mut();
+            if let Redraw::Do =
+                tool.on_mouse_button_release(button, &self.draw_context, &mut self.editor)
+            {
+                self.enqueue_redraw();
+            }
         }
     }
 
@@ -249,7 +253,7 @@ impl OxiPaint {
                 self.editor.scroll(rdx, rdy);
                 self.enqueue_redraw();
             }
-        } else {
+        } else if self.can_draw() {
             let tool = self.tools[self.selected_tool].as_mut();
             if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.editor) {
                 self.enqueue_redraw();
@@ -351,6 +355,10 @@ impl OxiPaint {
             let event = self.sdl_app.event_pump.wait_event();
             self.handle_event(event);
         }
+    }
+
+    fn can_draw(&self) -> bool {
+        !self.is_scrolling()
     }
 }
 
