@@ -105,7 +105,7 @@ pub struct OxiPaint {
     sdl_app: SdlApp,
     draw_context: DrawContext,
     tools: Vec<Box<dyn Tool>>,
-    selected_tool: Option<usize>,
+    selected_tool: usize,
     editor: Editor,
     state: OxiPaintState,
 }
@@ -116,7 +116,7 @@ impl OxiPaint {
         let draw_context = DrawContext::default();
         let tools = tools::list();
         assert!(!tools.is_empty());
-        let selected_tool = Some(0);
+        let selected_tool = 0;
         let editor = Editor::new(800, 600, Rc::clone(&sdl_app.sdl_canvas));
         let state = OxiPaintState::default();
 
@@ -223,24 +223,20 @@ impl OxiPaint {
     }
 
     fn handle_mouse_button_press(&mut self, button: MouseButton) {
-        if let Some(index) = self.selected_tool {
-            let tool = self.tools[index].as_mut();
-            if let Redraw::Do =
-                tool.on_mouse_button_press(button, &self.draw_context, &mut self.editor)
-            {
-                self.enqueue_redraw();
-            }
+        let tool = self.tools[self.selected_tool].as_mut();
+        if let Redraw::Do =
+            tool.on_mouse_button_press(button, &self.draw_context, &mut self.editor)
+        {
+            self.enqueue_redraw();
         }
     }
 
     fn handle_mouse_button_release(&mut self, button: MouseButton) {
-        if let Some(index) = self.selected_tool {
-            let tool = self.tools[index].as_mut();
-            if let Redraw::Do =
-                tool.on_mouse_button_release(button, &self.draw_context, &mut self.editor)
-            {
-                self.enqueue_redraw();
-            }
+        let tool = self.tools[self.selected_tool].as_mut();
+        if let Redraw::Do =
+            tool.on_mouse_button_release(button, &self.draw_context, &mut self.editor)
+        {
+            self.enqueue_redraw();
         }
     }
 
@@ -253,8 +249,8 @@ impl OxiPaint {
                 self.editor.scroll(rdx, rdy);
                 self.enqueue_redraw();
             }
-        } else if let Some(index) = self.selected_tool {
-            let tool = self.tools[index].as_mut();
+        } else {
+            let tool = self.tools[self.selected_tool].as_mut();
             if let Redraw::Do = tool.on_cursor_move(&self.draw_context, &mut self.editor) {
                 self.enqueue_redraw();
             }
