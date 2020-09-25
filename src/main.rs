@@ -48,6 +48,7 @@ pub struct SdlApp {
     pub sdl_context: Sdl,
     pub sdl_canvas: Rc<RefCell<SdlCanvas>>,
     pub event_pump: EventPump,
+    pub ttf_context: Sdl2TtfContext,
 }
 
 impl SdlApp {
