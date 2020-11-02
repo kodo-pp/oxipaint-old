@@ -3,7 +3,7 @@ use sdl2::event::Event;
 
 pub enum EventResponse {
     Close,
-    Leave,
+    Retain,
 }
 
 pub trait Overlay {
