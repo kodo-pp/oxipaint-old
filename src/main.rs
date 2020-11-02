@@ -8,6 +8,8 @@ mod geometry;
 mod history;
 mod tool;
 mod tools;
+mod overlay;
+mod zoom_overlay;
 
 use crate::draw_context::DrawContext;
 use crate::editor::{Editor, TimeMachineError};
@@ -18,8 +20,8 @@ use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::video::Window;
-use sdl2::EventPump;
-use sdl2::Sdl;
+use sdl2::{EventPump, Sdl};
+use sdl2::ttf::Sdl2TtfContext;
 use std::cell::RefCell;
 use std::error::Error;
 use std::fmt;
@@ -72,16 +74,28 @@ impl SdlApp {
 
         let event_pump = sdl_context.event_pump()?;
 
+        let ttf_context = Sdl2TtfContext;
+
         Ok(SdlApp {
             sdl_context,
             sdl_canvas,
             event_pump,
+            ttf_context,
         })
     }
 
     pub fn cursor_position(&self) -> Point<i32> {
         let mouse_state = self.event_pump.mouse_state();
         Point::new(mouse_state.x(), mouse_state.y())
+    }
+
+    pub fn dimensions(&self) -> (u32, u32) {
+        self.sdl_canvas.borrow().window().drawable_size()
+    }
+
+    pub fn center(&self) -> Point<i32> {
+        let (w, h) = self.dimensions();
+        Point::new((w / 2) as i32, (h / 2) as i32)
     }
 }
 

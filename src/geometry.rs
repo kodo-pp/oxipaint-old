@@ -1,4 +1,5 @@
 use std::ops::{Add, Div, Mul};
+use sdl2::rect;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Point<T = f64> {
@@ -30,6 +31,20 @@ impl<T> From<(T, T)> for Point<T> {
 impl<T> Into<(T, T)> for Point<T> {
     fn into(self) -> (T, T) {
         (self.x, self.y)
+    }
+}
+
+impl From<rect::Point> for Point<i32> {
+    fn from(rect_point: rect::Point) -> Self {
+        let tuple: (i32, i32) = rect_point.into();
+        tuple.into()
+    }
+}
+
+impl Into<rect::Point> for Point<i32> {
+    fn into(self) -> rect::Point {
+        let tuple: (i32, i32) = self.into();
+        tuple.into()
     }
 }
 
@@ -107,6 +122,12 @@ impl Scale {
     pub fn unapply<T: Div<Output = T> + From<u32>>(self, num: T) -> T {
         match self {
             Scale::Times(n) => num / n.into(),
+        }
+    }
+
+    pub fn to_percentage_string(&self) -> String {
+        match self {
+            Scale::Times(n) => format!("{}00%", n),
         }
     }
 }
