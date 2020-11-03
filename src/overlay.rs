@@ -9,18 +9,18 @@ pub enum EventResponse {
 }
 
 pub trait Overlay {
-    fn handle_event(&mut self, event: Event) -> EventResponse;
+    fn handle_event(&mut self, event: &Event) -> EventResponse;
     fn draw(&mut self, sdl_app: &mut SdlApp) -> Result<(), SdlError>;
 }
 
 pub trait SimpleOverlay {
-    fn handle_event(&mut self, event: Event) -> EventResponse;
+    fn handle_event(&mut self, event: &Event) -> EventResponse;
     fn draw(&mut self, sdl_app: &mut SdlApp, rect: Rect) -> Result<(), SdlError>;
     fn dimensions() -> (u32, u32);
 }
 
 impl<T: SimpleOverlay> Overlay for T {
-    fn handle_event(&mut self, event: Event) -> EventResponse {
+    fn handle_event(&mut self, event: &Event) -> EventResponse {
         self.handle_event(event)
     }
 

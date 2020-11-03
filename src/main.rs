@@ -15,6 +15,8 @@ use crate::draw_context::DrawContext;
 use crate::editor::{Editor, TimeMachineError};
 use crate::geometry::Point;
 use crate::tool::Tool;
+use crate::overlay::{Overlay, EventResponse};
+use crate::zoom_overlay::ZoomOverlay;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
@@ -74,7 +76,7 @@ impl SdlApp {
 
         let event_pump = sdl_context.event_pump()?;
 
-        let ttf_context = Sdl2TtfContext;
+        let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 
         Ok(SdlApp {
             sdl_context,
@@ -135,6 +137,7 @@ pub struct OxiPaint {
     selected_tool: usize,
     editor: Editor,
     state: OxiPaintState,
+    overlay: Option<Box<dyn Overlay>>,
 }
 
 impl OxiPaint {
@@ -163,10 +166,18 @@ impl OxiPaint {
             selected_tool,
             editor,
             state,
+            overlay: None,
         })
     }
 
     fn handle_event(&mut self, event: Event) {
+        if let Some(mut overlay) = self.overlay.take() {
+            match overlay.handle_event(&event) {
+                EventResponse::Close => (),
+                EventResponse::Retain => self.overlay = Some(overlay),
+            }
+        }
+
         match event {
             Event::Quit { .. } => {
                 self.enqueue_termination();
@@ -240,6 +251,7 @@ impl OxiPaint {
 
                 if let Some(new_scale) = self.editor.scale_up(stationary_point) {
                     println!("Scale increased to {}", new_scale);
+                    self.set_overlay(ZoomOverlay { zoom: new_scale });
                     self.enqueue_redraw();
                 } else {
                     println!("Failed to scale up");
@@ -253,6 +265,7 @@ impl OxiPaint {
 
                 if let Some(new_scale) = self.editor.scale_down(stationary_point) {
                     println!("Scale decreased to {}", new_scale);
+                    self.set_overlay(ZoomOverlay { zoom: new_scale });
                     self.enqueue_redraw();
                 } else {
                     println!("Failed to scale down");
@@ -404,6 +417,10 @@ impl OxiPaint {
                     .set_draw_color(Color::BLACK);
                 self.sdl_app.sdl_canvas.borrow_mut().clear();
                 self.editor.draw();
+                if let Some(overlay) = &mut self.overlay {
+                    // TODO: maybe use proper error handling?
+                    overlay.draw(&mut self.sdl_app).unwrap();
+                }
                 self.sdl_app.sdl_canvas.borrow_mut().present();
                 self.redrawn();
             }
@@ -415,6 +432,10 @@ impl OxiPaint {
 
     fn can_draw(&self) -> bool {
         !self.is_scrolling()
+    }
+
+    fn set_overlay(&mut self, overlay: impl Overlay + 'static) {
+        self.overlay = Some(Box::new(overlay));
     }
 }
 
