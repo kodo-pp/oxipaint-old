@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 sdl2 = { version = "0.34", features = ["ttf"] }
 font-kit = "0.10.0"
+gtk = "0.9.0"
+lazy_static = "1.4"

@@ -11,6 +11,9 @@ mod tools;
 mod overlay;
 mod zoom_overlay;
 
+#[macro_use]
+extern crate lazy_static;
+
 use crate::draw_context::DrawContext;
 use crate::editor::{Editor, TimeMachineError};
 use crate::geometry::Point;
@@ -28,6 +31,7 @@ use std::cell::RefCell;
 use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
+use std::iter::FromIterator;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SdlError(String);
@@ -118,16 +122,173 @@ impl Default for OxiPaintState {
     }
 }
 
-const fn any_keymod_of_two(a: Mod, b: Mod) -> Mod {
-    Mod::from_bits_truncate(a.bits() | b.bits())
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct KeyModifier {
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
 }
 
-macro_rules! any_keymod_of {
-    [$mod:expr] => ($mod);
-    [$head:expr, $($tail:expr),+] => (
-        any_keymod_of_two($head, any_keymod_of![$($tail),+])
-    );
-    [$($mods:expr),+,] => (any_keymod_of![$($mods),+]);
+macro_rules! gen_building_function {
+    ($which:ident) => {
+        #[allow(dead_code)]
+        pub const fn $which(self) -> Self {
+            let mut new = self;
+            new.$which = true;
+            new
+        }
+    }
+}
+
+impl KeyModifier {
+    pub const fn new() -> Self {
+        Self {
+            ctrl: false,
+            alt: false,
+            shift: false,
+        }
+    }
+
+    gen_building_function!(ctrl);
+    gen_building_function!(shift);
+    gen_building_function!(alt);
+
+    pub const fn key(self, key: Keycode) -> KeyWithMod {
+        KeyWithMod {
+            key,
+            modifier: self,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct KeyWithMod {
+    pub key: Keycode,
+    pub modifier: KeyModifier
+}
+
+impl KeyWithMod {
+    pub const fn new(key: Keycode, modifier: KeyModifier) -> Self {
+        Self { key, modifier }
+    }
+}
+
+macro_rules! gen_keymod_translation {
+    ($src:expr, $sdl_keymods:expr => $result:ident.$keymod:ident) => {
+        if $src.intersects(Mod::from_iter($sdl_keymods.iter().copied())) {
+            $result = $result.$keymod();
+        }
+    }
+}
+
+impl From<Mod> for KeyModifier {
+    fn from(sdl_keymod: Mod) -> Self {
+        let mut result = KeyModifier::new();
+        gen_keymod_translation!(sdl_keymod, [Mod::LCTRLMOD, Mod::RCTRLMOD] => result.ctrl);
+        gen_keymod_translation!(sdl_keymod, [Mod::LSHIFTMOD, Mod::RSHIFTMOD] => result.alt);
+        gen_keymod_translation!(sdl_keymod, [Mod::LALTMOD, Mod::RALTMOD] => result.shift);
+        result
+    }
+}
+
+mod hotkey {
+    use super::*;
+
+    pub fn handle_undo(oxipaint: &mut OxiPaint) {
+        match oxipaint.editor.undo() {
+            Ok(_) => {
+                println!("Undo OK");
+                oxipaint.enqueue_redraw();
+            }
+            Err(TimeMachineError::AlreadyAtTimeEdge) => {
+                println!("Cannot undo at the beginning of the timeline");
+            }
+            Err(TimeMachineError::TransactionInProgress) => {
+                println!("Cannot undo because a drawing action is in progress");
+            }
+        }
+    }
+
+    pub fn handle_redo(oxipaint: &mut OxiPaint) {
+        match oxipaint.editor.redo() {
+            Ok(_) => {
+                println!("Redo OK");
+                oxipaint.enqueue_redraw();
+            }
+            Err(TimeMachineError::AlreadyAtTimeEdge) => {
+                println!("Cannot redo at the beginning of the timeline");
+            }
+            Err(TimeMachineError::TransactionInProgress) => {
+                println!("Cannot redo because a drawing action is in progress");
+            }
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum PressOrRelease {
+    Press,
+    Release,
+}
+
+pub type HotkeyCallback = Box<dyn Fn(&mut OxiPaint) + Sync>;
+
+#[derive(Default)]
+pub struct HotkeyAction {
+    pub on_press: Option<HotkeyCallback>,
+    pub on_release: Option<HotkeyCallback>,
+}
+
+impl HotkeyAction {
+    pub fn new(
+        on_press: Option<HotkeyCallback>,
+        on_release: Option<HotkeyCallback>,
+    ) -> Self {
+        Self {
+            on_press: on_press.map(Into::into),
+            on_release: on_release.map(Into::into),
+        }
+    }
+
+    pub fn execute(&self, event: PressOrRelease, oxipaint: &mut OxiPaint) {
+        if let Some(func) = match event {
+            PressOrRelease::Press => &self.on_press,
+            PressOrRelease::Release => &self.on_release,
+        } {
+            func(oxipaint);
+        }
+    }
+}
+
+lazy_static! {
+    pub static ref HOTKEYS: Vec<(KeyWithMod, HotkeyAction)> = {
+        vec![
+            (
+                KeyModifier::new().ctrl().key(Keycode::Z),
+                HotkeyAction::new(Some(Box::new(hotkey::handle_undo)), None),
+            ),
+            (
+                KeyModifier::new().ctrl().key(Keycode::Y),
+                HotkeyAction::new(Some(Box::new(hotkey::handle_redo)), None),
+            ),
+            (
+                KeyModifier::new().key(Keycode::Space),
+                HotkeyAction::new(
+                    Some(Box::new(|oxi| oxi.start_scrolling())),
+                    Some(Box::new(|oxi| oxi.stop_scrolling())),
+                ),
+            ),
+        ]
+    };
+}
+
+fn handle_hotkeys(oxipaint: &mut OxiPaint, key: KeyWithMod, event: PressOrRelease) {
+    for (pattern, action) in HOTKEYS.iter() {
+        if pattern == &key {
+            action.execute(event, oxipaint);
+            break;
+        }
+    }
 }
 
 pub struct OxiPaint {
@@ -141,15 +302,6 @@ pub struct OxiPaint {
 }
 
 impl OxiPaint {
-    const HOTKEYS_KEYMOD_MASK: Mod = any_keymod_of![
-        Mod::LCTRLMOD,
-        Mod::RCTRLMOD,
-        Mod::LALTMOD,
-        Mod::RALTMOD,
-        Mod::LSHIFTMOD,
-        Mod::RSHIFTMOD,
-    ];
-
     pub fn new() -> Result<OxiPaint, SdlError> {
         let sdl_app = SdlApp::new()?;
         let draw_context = DrawContext::default();
@@ -201,40 +353,20 @@ impl OxiPaint {
                 self.handle_mouse_button_release(mouse_btn);
             }
             Event::KeyDown {
-                keycode: Some(Keycode::Z),
-                keymod,
+                keycode: Some(key),
+                keymod: sdl_keymod,
                 ..
-            } if [Mod::LCTRLMOD, Mod::RCTRLMOD].contains(&(keymod & Self::HOTKEYS_KEYMOD_MASK)) => {
-                match self.editor.undo() {
-                    Ok(_) => {
-                        println!("Undo OK");
-                        self.enqueue_redraw();
-                    }
-                    Err(TimeMachineError::AlreadyAtTimeEdge) => {
-                        println!("Cannot undo at the beginning of the timeline");
-                    }
-                    Err(TimeMachineError::TransactionInProgress) => {
-                        println!("Cannot undo because a drawing action is in progress");
-                    }
-                }
+            } => {
+                let key_with_mod = KeyWithMod::new(key, sdl_keymod.into());
+                handle_hotkeys(self, key_with_mod, PressOrRelease::Press);
             }
-            Event::KeyDown {
-                keycode: Some(Keycode::Y),
-                keymod,
+            Event::KeyUp {
+                keycode: Some(key),
+                keymod: sdl_keymod,
                 ..
-            } if [Mod::LCTRLMOD, Mod::RCTRLMOD].contains(&(keymod & Self::HOTKEYS_KEYMOD_MASK)) => {
-                match self.editor.redo() {
-                    Ok(_) => {
-                        println!("Redo OK");
-                        self.enqueue_redraw();
-                    }
-                    Err(TimeMachineError::AlreadyAtTimeEdge) => {
-                        println!("Cannot redo at the beginning of the timeline");
-                    }
-                    Err(TimeMachineError::TransactionInProgress) => {
-                        println!("Cannot redo because a drawing action is in progress");
-                    }
-                }
+            } => {
+                let key_with_mod = KeyWithMod::new(key, sdl_keymod.into());
+                handle_hotkeys(self, key_with_mod, PressOrRelease::Release);
             }
             Event::Window { win_event, .. } => match win_event {
                 WindowEvent::Leave => {
@@ -270,18 +402,6 @@ impl OxiPaint {
                 } else {
                     println!("Failed to scale down");
                 }
-            }
-            Event::KeyDown {
-                keycode: Some(Keycode::Space),
-                ..
-            } => {
-                self.start_scrolling();
-            }
-            Event::KeyUp {
-                keycode: Some(Keycode::Space),
-                ..
-            } => {
-                self.stop_scrolling();
             }
             _ => (),
         }
