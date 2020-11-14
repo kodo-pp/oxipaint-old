@@ -39,6 +39,14 @@ impl Canvas {
         }
     }
 
+    pub fn build_image(&self) -> Vec<u8> {
+        let mut buf = self.data.clone();
+        for slice in buf.chunks_mut(4) {
+            slice.swap(0, 2);
+        }
+        buf
+    }
+
     pub fn area(&self) -> usize {
         self.width as usize * self.height as usize
     }

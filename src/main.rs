@@ -32,6 +32,9 @@ use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
 use std::iter::FromIterator;
+use std::path::Path;
+use std::fs::File;
+use std::io::BufWriter;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SdlError(String);
@@ -223,6 +226,34 @@ mod hotkey {
             }
         }
     }
+
+    pub fn save(oxipaint: &mut OxiPaint) -> Result<(), Box<dyn Error>> {
+        if let Some(path) = tinyfiledialogs::save_file_dialog("Save file", "image.png") {
+            use png::{Encoder, ColorType};
+            let file = File::create(Path::new(&path))?;
+            let mut file_writer = BufWriter::new(file);
+            let canvas = &oxipaint.editor.canvas();
+            let mut png_writer = Encoder::new(&mut file_writer, canvas.width(), canvas.height());
+            png_writer.set_color(ColorType::RGBA);
+            png_writer.write_header()?.write_image_data(&canvas.build_image())?;
+            println!("Saved to {}", path);
+        } else {
+            println!("Saving cancelled");
+        }
+        Ok(())
+    }
+
+    pub fn catch(func: impl Sync + Fn(&mut OxiPaint) -> Result<(), Box<dyn Error>> + 'static) -> HotkeyCallback {
+        Box::new(move |oxipaint| {
+            match func(oxipaint) {
+                Ok(_) => (),
+                Err(e) => {
+                    eprintln!("A non-fatal error occured: {}", e);
+                    eprintln!("  -> Detailed information: {:?}", e);
+                }
+            }
+        })
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -276,6 +307,13 @@ lazy_static! {
                 HotkeyAction::new(
                     Some(Box::new(|oxi| oxi.start_scrolling())),
                     Some(Box::new(|oxi| oxi.stop_scrolling())),
+                ),
+            ),
+            (
+                KeyModifier::new().ctrl().key(Keycode::S),
+                HotkeyAction::new(
+                    Some(hotkey::catch(Box::new(hotkey::save))),
+                    None
                 ),
             ),
         ]
