@@ -1,14 +1,14 @@
 use crate::geometry::Scale;
 use crate::overlay::{EventResponse, SimpleOverlay};
 use crate::{SdlApp, SdlError};
+use font_kit::family_name::FamilyName;
+use font_kit::handle::Handle;
+use font_kit::properties::Properties;
+use font_kit::source::SystemSource;
 use sdl2::event::Event;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::ttf::{Font, Sdl2TtfContext};
-use font_kit::source::SystemSource;
-use font_kit::properties::Properties;
-use font_kit::family_name::FamilyName;
-use font_kit::handle::Handle;
 
 pub struct ZoomOverlay {
     pub zoom: Scale,
@@ -20,7 +20,7 @@ fn load_font<'ttf>(ttf_context: &'ttf Sdl2TtfContext) -> Result<Font<'ttf, 'stat
         .select_best_match(&[FamilyName::SansSerif], &Properties::new())
         .map_err(|e| e.to_string())?;
     match handle {
-        Handle::Path { path, .. } => ttf_context.load_font(path, 24).map_err(|e| { panic!(e) }),
+        Handle::Path { path, .. } => ttf_context.load_font(path, 24).map_err(|e| panic!(e)),
         _ => panic!("Expected Handle::Path"),
     }
 }
@@ -34,10 +34,7 @@ impl SimpleOverlay for ZoomOverlay {
             .solid(Color::BLACK)
             .map_err(|e| e.to_string())?;
 
-        let texture_creator = sdl_app
-            .sdl_canvas
-            .borrow_mut()
-            .texture_creator();
+        let texture_creator = sdl_app.sdl_canvas.borrow_mut().texture_creator();
 
         let texture = texture_creator
             .create_texture_from_surface(surface)

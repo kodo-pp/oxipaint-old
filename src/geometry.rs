@@ -1,5 +1,5 @@
-use std::ops::{Add, Div, Mul};
 use sdl2::rect;
+use std::ops::{Add, Div, Mul};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Point<T = f64> {

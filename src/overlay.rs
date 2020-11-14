@@ -1,7 +1,7 @@
 use crate::{SdlApp, SdlError};
 use sdl2::event::Event;
-use sdl2::rect::Rect;
 use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 
 pub enum EventResponse {
     Close,

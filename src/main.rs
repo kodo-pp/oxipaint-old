@@ -6,9 +6,9 @@ mod draw_primitives;
 mod editor;
 mod geometry;
 mod history;
+mod overlay;
 mod tool;
 mod tools;
-mod overlay;
 mod zoom_overlay;
 
 #[macro_use]
@@ -17,24 +17,24 @@ extern crate lazy_static;
 use crate::draw_context::DrawContext;
 use crate::editor::{Editor, TimeMachineError};
 use crate::geometry::Point;
+use crate::overlay::{EventResponse, Overlay};
 use crate::tool::Tool;
-use crate::overlay::{Overlay, EventResponse};
 use crate::zoom_overlay::ZoomOverlay;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
+use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::Window;
 use sdl2::{EventPump, Sdl};
-use sdl2::ttf::Sdl2TtfContext;
 use std::cell::RefCell;
 use std::error::Error;
 use std::fmt;
-use std::rc::Rc;
-use std::iter::FromIterator;
-use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
+use std::iter::FromIterator;
+use std::path::Path;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SdlError(String);
@@ -140,7 +140,7 @@ macro_rules! gen_building_function {
             new.$which = true;
             new
         }
-    }
+    };
 }
 
 impl KeyModifier {
@@ -167,7 +167,7 @@ impl KeyModifier {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct KeyWithMod {
     pub key: Keycode,
-    pub modifier: KeyModifier
+    pub modifier: KeyModifier,
 }
 
 impl KeyWithMod {
@@ -181,7 +181,7 @@ macro_rules! gen_keymod_translation {
         if $src.intersects(Mod::from_iter($sdl_keymods.iter().copied())) {
             $result = $result.$keymod();
         }
-    }
+    };
 }
 
 impl From<Mod> for KeyModifier {
@@ -229,13 +229,15 @@ mod hotkey {
 
     pub fn save(oxipaint: &mut OxiPaint) -> Result<(), Box<dyn Error>> {
         if let Some(path) = tinyfiledialogs::save_file_dialog("Save file", "image.png") {
-            use png::{Encoder, ColorType};
+            use png::{ColorType, Encoder};
             let file = File::create(Path::new(&path))?;
             let mut file_writer = BufWriter::new(file);
             let canvas = &oxipaint.editor.canvas();
             let mut png_writer = Encoder::new(&mut file_writer, canvas.width(), canvas.height());
             png_writer.set_color(ColorType::RGBA);
-            png_writer.write_header()?.write_image_data(&canvas.build_image())?;
+            png_writer
+                .write_header()?
+                .write_image_data(&canvas.build_image())?;
             println!("Saved to {}", path);
         } else {
             println!("Saving cancelled");
@@ -243,14 +245,14 @@ mod hotkey {
         Ok(())
     }
 
-    pub fn catch(func: impl Sync + Fn(&mut OxiPaint) -> Result<(), Box<dyn Error>> + 'static) -> HotkeyCallback {
-        Box::new(move |oxipaint| {
-            match func(oxipaint) {
-                Ok(_) => (),
-                Err(e) => {
-                    eprintln!("A non-fatal error occured: {}", e);
-                    eprintln!("  -> Detailed information: {:?}", e);
-                }
+    pub fn catch(
+        func: impl Sync + Fn(&mut OxiPaint) -> Result<(), Box<dyn Error>> + 'static,
+    ) -> HotkeyCallback {
+        Box::new(move |oxipaint| match func(oxipaint) {
+            Ok(_) => (),
+            Err(e) => {
+                eprintln!("A non-fatal error occured: {}", e);
+                eprintln!("  -> Detailed information: {:?}", e);
             }
         })
     }
@@ -271,10 +273,7 @@ pub struct HotkeyAction {
 }
 
 impl HotkeyAction {
-    pub fn new(
-        on_press: Option<HotkeyCallback>,
-        on_release: Option<HotkeyCallback>,
-    ) -> Self {
+    pub fn new(on_press: Option<HotkeyCallback>, on_release: Option<HotkeyCallback>) -> Self {
         Self {
             on_press: on_press.map(Into::into),
             on_release: on_release.map(Into::into),
@@ -311,10 +310,7 @@ lazy_static! {
             ),
             (
                 KeyModifier::new().ctrl().key(Keycode::S),
-                HotkeyAction::new(
-                    Some(hotkey::catch(Box::new(hotkey::save))),
-                    None
-                ),
+                HotkeyAction::new(Some(hotkey::catch(Box::new(hotkey::save))), None),
             ),
         ]
     };
